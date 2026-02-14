@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Fresh Admin &amp; Tools Dashboard | Enterprise AI</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            "primary": "#10b981", // Mint green
+            "primary-hover": "#059669",
+            "bg-main": "#ffffff",
+            "sidebar-bg": "#f9fafb",
+          },
+          fontFamily: {
+            "display": ["Inter", "sans-serif"]
+          },
+          borderRadius: {"DEFAULT": "0.375rem", "lg": "0.75rem", "xl": "1rem", "full": "9999px"},
+        },
+      },
+    }
+  </script>
+<style type="text/tailwindcss">
+    @layer base {
+      body { font-family: 'Inter', sans-serif; @apply bg-white text-slate-800; }
+    }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
+    .pastel-blue { background-color: #eef2ff; }
+    .pastel-green { background-color: #ecfdf5; }
+    .pastel-purple { background-color: #f5f3ff; }
+    .pastel-orange { background-color: #fff7ed; }
+</style>
+</head>
+<body class="font-display antialiased">
+<div class="flex h-screen overflow-hidden">
+<aside class="w-64 border-r border-slate-100 bg-sidebar-bg flex flex-col">
+<div class="p-6 flex items-center gap-3">
+<div class="w-9 h-9 bg-primary rounded-xl flex items-center justify-center text-white shadow-lg shadow-primary/20">
+<span class="material-symbols-outlined text-2xl font-bold">settings_heart</span>
+</div>
+<span class="font-bold text-lg tracking-tight text-slate-900">FreshAdmin</span>
+</div>
+<nav class="flex-1 px-4 space-y-1 mt-4">
+<a class="flex items-center gap-3 px-4 py-2.5 text-primary bg-primary/10 rounded-xl group transition-all" href="#">
+<span class="material-symbols-outlined text-xl text-primary">grid_view</span>
+<span class="font-semibold text-sm">Overview</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2.5 text-slate-500 hover:text-slate-900 hover:bg-white rounded-xl transition-all group" href="#">
+<span class="material-symbols-outlined text-xl text-orange-400">extension</span>
+<span class="font-medium text-sm">MCP Toolkits</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2.5 text-slate-500 hover:text-slate-900 hover:bg-white rounded-xl transition-all group" href="#">
+<span class="material-symbols-outlined text-xl text-blue-400">group</span>
+<span class="font-medium text-sm">Users</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2.5 text-slate-500 hover:text-slate-900 hover:bg-white rounded-xl transition-all group" href="#">
+<span class="material-symbols-outlined text-xl text-purple-400">terminal</span>
+<span class="font-medium text-sm">System Logs</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2.5 text-slate-500 hover:text-slate-900 hover:bg-white rounded-xl transition-all group" href="#">
+<span class="material-symbols-outlined text-xl text-pink-400">monitoring</span>
+<span class="font-medium text-sm">Usage Metrics</span>
+</a>
+</nav>
+<div class="p-4 mt-auto">
+<div class="mb-4">
+<a class="flex items-center gap-3 px-4 py-2.5 text-slate-500 hover:text-slate-900 hover:bg-white rounded-xl transition-all" href="#">
+<span class="material-symbols-outlined text-xl text-slate-400">settings</span>
+<span class="font-medium text-sm">Settings</span>
+</a>
+</div>
+<div class="flex items-center gap-3 p-3 bg-white border border-slate-100 rounded-2xl shadow-sm">
+<img alt="Admin Profile" class="w-10 h-10 rounded-full border-2 border-primary/20 object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA4OsjutDUkThWJCjPafrCwkOrR79tXFFw208UpLbA39tF4jmPT0pS7p4XW4cEoqa9B8DdVTLl3oTJYxs3ajZyo44A2EqBgJv2ynZ49YVv9xkOjLYS5Rw68EvS1eIP_dW-D6SpNaqgByUcYrnuZjlP-jroYlFofwu2dbIH80Vkc_R_TiSwFTflW87aC_S7q5KOrhvaIQcr_69EcvldjIGFD1rbopksfrNsJAc0_Y-GuhgyXWjvhPt07LI8h6VvdQBAgzNGF3KuA3pl8"/>
+<div class="overflow-hidden">
+<p class="text-xs font-bold text-slate-900 truncate">Alex Sterling</p>
+<p class="text-[10px] text-slate-400 font-medium uppercase tracking-wider">System Admin</p>
+</div>
+</div>
+</div>
+</aside>
+<main class="flex-1 overflow-y-auto custom-scrollbar flex flex-col bg-white">
+<header class="h-16 flex items-center justify-between px-8 bg-white/80 backdrop-blur-md sticky top-0 z-20 border-b border-slate-50">
+<div class="flex items-center gap-2 text-xs font-medium text-slate-400">
+<span class="hover:text-slate-600 cursor-pointer">Admin Dashboard</span>
+<span class="material-icons text-sm">chevron_right</span>
+<span class="text-slate-900">System Toolkits</span>
+</div>
+<div class="flex items-center gap-5">
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
+<input class="bg-slate-50 border-none rounded-full pl-10 pr-4 py-2 text-sm w-72 focus:ring-2 focus:ring-primary/20 outline-none transition-all placeholder:text-slate-400" placeholder="Search systems or tools..." type="text"/>
+</div>
+<button class="relative p-2.5 text-slate-400 hover:bg-slate-50 rounded-full transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-2.5 right-2.5 w-2 h-2 bg-rose-500 rounded-full border-2 border-white"></span>
+</button>
+</div>
+</header>
+<div class="p-8 space-y-8 max-w-7xl mx-auto w-full">
+<section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+<div class="pastel-blue p-6 rounded-2xl shadow-sm border border-indigo-50/50">
+<div class="flex items-center justify-between mb-3">
+<span class="text-xs font-bold text-indigo-600 uppercase tracking-wider">Active Users</span>
+<span class="material-symbols-outlined text-indigo-500 bg-white p-2 rounded-xl shadow-sm text-xl">group</span>
+</div>
+<div class="text-3xl font-extrabold text-slate-900 tracking-tight">1,284</div>
+<div class="text-[11px] font-bold text-indigo-500 flex items-center gap-1 mt-3">
+<span class="material-icons text-xs">trending_up</span>
+<span>+12.5% INCREMENT</span>
+</div>
+</div>
+<div class="pastel-green p-6 rounded-2xl shadow-sm border border-emerald-50/50">
+<div class="flex items-center justify-between mb-3">
+<span class="text-xs font-bold text-emerald-600 uppercase tracking-wider">API Requests</span>
+<span class="material-symbols-outlined text-emerald-500 bg-white p-2 rounded-xl shadow-sm text-xl">bolt</span>
+</div>
+<div class="text-3xl font-extrabold text-slate-900 tracking-tight">452.1k</div>
+<div class="text-[11px] font-bold text-emerald-500 mt-3 flex items-center gap-1">
+<span class="material-icons text-xs">calendar_today</span>
+<span>CURRENT CYCLE</span>
+</div>
+</div>
+<div class="pastel-orange p-6 rounded-2xl shadow-sm border border-orange-50/50">
+<div class="flex items-center justify-between mb-3">
+<span class="text-xs font-bold text-orange-600 uppercase tracking-wider">System Health</span>
+<span class="material-symbols-outlined text-orange-500 bg-white p-2 rounded-xl shadow-sm text-xl">temp_preferences_custom</span>
+</div>
+<div class="text-3xl font-extrabold text-slate-900 tracking-tight">99.98%</div>
+<div class="text-[11px] font-bold text-orange-500 mt-3 flex items-center gap-1">
+<span class="material-icons text-xs">check_circle</span>
+<span>SYSTEM OPERATIONAL</span>
+</div>
+</div>
+<div class="pastel-purple p-6 rounded-2xl shadow-sm border border-purple-50/50">
+<div class="flex items-center justify-between mb-3">
+<span class="text-xs font-bold text-purple-600 uppercase tracking-wider">Active Toolkits</span>
+<span class="material-symbols-outlined text-purple-500 bg-white p-2 rounded-xl shadow-sm text-xl">handyman</span>
+</div>
+<div class="text-3xl font-extrabold text-slate-900 tracking-tight">12 <span class="text-lg font-medium text-slate-400">/ 15</span></div>
+<div class="text-[11px] font-bold text-purple-500 mt-3 flex items-center gap-1">
+<span class="material-icons text-xs">info</span>
+<span>3 IN MAINTENANCE</span>
+</div>
+</div>
+</section>
+<section>
+<div class="flex items-center justify-between mb-6">
+<div>
+<h2 class="text-2xl font-extrabold text-slate-900">MCP Toolkits</h2>
+<p class="text-sm text-slate-400 mt-1">Manage external connectors for your AI assistant</p>
+</div>
+<button class="bg-primary hover:bg-primary-hover text-white px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 shadow-lg shadow-primary/20 transition-all">
+<span class="material-symbols-outlined text-lg">add_circle</span>
+Install New Toolkit
+</button>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+<div class="bg-white border border-slate-100 p-6 rounded-2xl shadow-sm hover:shadow-md hover:border-slate-200 transition-all group">
+<div class="flex items-start justify-between mb-6">
+<div class="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center">
+<span class="material-symbols-outlined text-3xl text-blue-500">travel_explore</span>
+</div>
+<label class="relative inline-flex items-center cursor-pointer">
+<input checked="" class="sr-only peer" type="checkbox"/>
+<div class="w-12 h-6.5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:rounded-full after:h-5.5 after:w-5.5 after:transition-all peer-checked:bg-primary"></div>
+</label>
+</div>
+<h3 class="font-bold text-lg text-slate-900">Google Search</h3>
+<p class="text-sm text-slate-500 mt-2 mb-6 leading-relaxed">Real-time web browsing and information retrieval from search results.</p>
+<div class="flex items-center justify-between pt-5 border-t border-slate-50">
+<div class="flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-primary"></span>
+<span class="text-[10px] uppercase font-bold tracking-widest text-primary">Connected</span>
+</div>
+<button class="text-xs font-bold text-slate-400 hover:text-primary transition-colors">CONFIGURE</button>
+</div>
+</div>
+<div class="bg-white border border-slate-100 p-6 rounded-2xl shadow-sm hover:shadow-md hover:border-slate-200 transition-all group">
+<div class="flex items-start justify-between mb-6">
+<div class="w-14 h-14 bg-amber-50 rounded-2xl flex items-center justify-center">
+<span class="material-symbols-outlined text-3xl text-amber-500">database</span>
+</div>
+<label class="relative inline-flex items-center cursor-pointer">
+<input class="sr-only peer" type="checkbox"/>
+<div class="w-12 h-6.5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:rounded-full after:h-5.5 after:w-5.5 after:transition-all peer-checked:bg-primary"></div>
+</label>
+</div>
+<h3 class="font-bold text-lg text-slate-900">SQL Database</h3>
+<p class="text-sm text-slate-500 mt-2 mb-6 leading-relaxed">Direct read/write access to PostgreSQL and MySQL cloud instances.</p>
+<div class="flex items-center justify-between pt-5 border-t border-slate-50">
+<div class="flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-slate-300"></span>
+<span class="text-[10px] uppercase font-bold tracking-widest text-slate-400">Inactive</span>
+</div>
+<button class="text-xs font-bold text-slate-400 hover:text-primary transition-colors">CONFIGURE</button>
+</div>
+</div>
+<div class="bg-white border border-slate-100 p-6 rounded-2xl shadow-sm hover:shadow-md hover:border-slate-200 transition-all group">
+<div class="flex items-start justify-between mb-6">
+<div class="w-14 h-14 bg-indigo-50 rounded-2xl flex items-center justify-center">
+<span class="material-symbols-outlined text-3xl text-indigo-500">folder_open</span>
+</div>
+<label class="relative inline-flex items-center cursor-pointer">
+<input checked="" class="sr-only peer" type="checkbox"/>
+<div class="w-12 h-6.5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:rounded-full after:h-5.5 after:w-5.5 after:transition-all peer-checked:bg-primary"></div>
+</label>
+</div>
+<h3 class="font-bold text-lg text-slate-900">Local Filesystem</h3>
+<p class="text-sm text-slate-500 mt-2 mb-6 leading-relaxed">Secure document indexing for internal corporate knowledge bases.</p>
+<div class="flex items-center justify-between pt-5 border-t border-slate-50">
+<div class="flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-primary"></span>
+<span class="text-[10px] uppercase font-bold tracking-widest text-primary">Connected</span>
+</div>
+<button class="text-xs font-bold text-slate-400 hover:text-primary transition-colors">CONFIGURE</button>
+</div>
+</div>
+</div>
+</section>
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-8">
+<div class="xl:col-span-2 space-y-4">
+<div class="flex items-center justify-between px-2">
+<h2 class="text-xl font-extrabold text-slate-900 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">receipt_long</span>
+Live Tool Logs
+</h2>
+<div class="flex items-center gap-4">
+<span class="flex items-center gap-2 text-xs font-semibold text-primary/80">
+<span class="w-2 h-2 bg-primary rounded-full animate-pulse"></span>
+STREAMING
+</span>
+<button class="text-xs font-bold text-slate-400 hover:text-rose-500 transition-colors uppercase tracking-widest">Clear</button>
+</div>
+</div>
+<div class="bg-slate-50 rounded-2xl p-6 font-mono text-[13px] h-[360px] overflow-y-auto custom-scrollbar border border-slate-100 shadow-inner">
+<div class="space-y-2.5">
+<div class="flex gap-4 p-1 hover:bg-white rounded transition-colors group">
+<span class="text-slate-400 shrink-0">14:23:45</span>
+<span class="text-blue-600 font-bold shrink-0">[CALL]</span>
+<span class="text-slate-700">google_search("<span class="text-emerald-600">latest ai trends 2024</span>")</span>
+</div>
+<div class="flex gap-4 p-1 hover:bg-white rounded transition-colors">
+<span class="text-slate-400 shrink-0">14:23:46</span>
+<span class="text-emerald-600 font-bold shrink-0">[SUCCESS]</span>
+<span class="text-slate-500 italic">200 OK — 1.2s</span>
+</div>
+<div class="flex gap-4 p-1 hover:bg-white rounded transition-colors">
+<span class="text-slate-400 shrink-0">14:24:12</span>
+<span class="text-blue-600 font-bold shrink-0">[CALL]</span>
+<span class="text-slate-700">filesystem_read("<span class="text-indigo-600">/docs/internal_report.pdf</span>")</span>
+</div>
+<div class="flex gap-4 p-1 hover:bg-white rounded transition-colors">
+<span class="text-slate-400 shrink-0">14:24:14</span>
+<span class="text-emerald-600 font-bold shrink-0">[SUCCESS]</span>
+<span class="text-slate-500 italic">Vector match: 0.94 confidence</span>
+</div>
+<div class="flex gap-4 p-1 hover:bg-white rounded transition-colors">
+<span class="text-slate-400 shrink-0">14:25:01</span>
+<span class="text-blue-600 font-bold shrink-0">[CALL]</span>
+<span class="text-slate-700">sql_query("<span class="text-slate-600">SELECT * FROM prod_users</span>")</span>
+</div>
+<div class="flex gap-4 p-1 hover:bg-white rounded transition-colors">
+<span class="text-slate-400 shrink-0">14:25:01</span>
+<span class="text-rose-600 font-bold shrink-0">[ERROR]</span>
+<span class="text-slate-500">Toolkit "SQL Database" is currently disabled.</span>
+</div>
+<div class="flex gap-4 p-1 hover:bg-white rounded transition-colors">
+<span class="text-slate-400 shrink-0">14:25:30</span>
+<span class="text-blue-600 font-bold shrink-0">[CALL]</span>
+<span class="text-slate-700">google_search("<span class="text-emerald-600">weather san francisco</span>")</span>
+</div>
+<div class="flex gap-4 p-1 hover:bg-white rounded transition-colors">
+<span class="text-slate-400 shrink-0">14:25:32</span>
+<span class="text-emerald-600 font-bold shrink-0">[SUCCESS]</span>
+<span class="text-slate-500 italic">Rendering results to UI</span>
+</div>
+<div class="flex gap-4 p-1 hover:bg-white rounded transition-colors">
+<span class="text-slate-400 shrink-0">14:26:10</span>
+<span class="text-amber-600 font-bold shrink-0">[WARN]</span>
+<span class="text-slate-500">High latency detected on Google Search API (3.4s)</span>
+</div>
+</div>
+</div>
+</div>
+<div class="space-y-4">
+<h2 class="text-xl font-extrabold text-slate-900 flex items-center gap-2 px-2">
+<span class="material-symbols-outlined text-primary">person_check</span>
+User Activity
+</h2>
+<div class="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
+<div class="divide-y divide-slate-50">
+<div class="p-4 flex items-center gap-4 hover:bg-slate-50 transition-colors">
+<img alt="User Avatar" class="w-11 h-11 rounded-full object-cover border-2 border-emerald-100 shadow-sm" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCaKxiA7SUeUK4tbD3eKDaaCjuI8BJH2iByzAEEJP0F7rJVSCtIBmEfRxBzW_ZRZQUgMra4l58-1GeiiP6YxQb_RX8qkSiBtfpn0hdxAM-_V0IByIZ8kVs2mIvBTzo1VAXuUmPL_q7ZA6DJ0mAx5j-fJOpeJ_fhnBrnLF8DY64dQuYes8Xx9qngMLFIsamiMQBGps2Q4dq_4-uWn8mtOZ4jp1jPfuGnME0PtT22iyuDbOuvXVJ5I6Tc_AX3bnWRIMYfC8kYKx31vKMo"/>
+<div class="flex-1">
+<p class="text-sm font-bold text-slate-900">Sarah Jenkins</p>
+<p class="text-[11px] text-slate-400 font-medium">Engineering Lead</p>
+</div>
+<div class="flex flex-col items-end">
+<span class="w-2.5 h-2.5 bg-emerald-500 rounded-full shadow-sm shadow-emerald-200"></span>
+<span class="text-[9px] text-emerald-500 font-bold mt-1 uppercase">Online</span>
+</div>
+</div>
+<div class="p-4 flex items-center gap-4 hover:bg-slate-50 transition-colors">
+<img alt="User Avatar" class="w-11 h-11 rounded-full object-cover border-2 border-emerald-100 shadow-sm" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD0f7BsZz3_kc2ptizmw-Ncl8c5h5AMdLmRtMmtqy7RmXv76SvyZfpA122k_PnwE4NwvY2ZLg6WddNlDV-XRWZ7wy62Z3TspEwdA5WKVpxpSc3BurXhZV0koseWAclsK-M0cqcp7qFDLfrgW3K47rLHDmmAHVWZyi8oJxGYsYDe-nstpEd6I_iGmVtYX5zxzLfrPH5lP1EvRaNTchYI85agwwvF5n5JulUHcZuF3v0nFa8bNsseKgLtXvVIgU8oc5ehomPIU5YVQoct"/>
+<div class="flex-1">
+<p class="text-sm font-bold text-slate-900">Marcus Chen</p>
+<p class="text-[11px] text-slate-400 font-medium">Data Analyst</p>
+</div>
+<div class="flex flex-col items-end">
+<span class="w-2.5 h-2.5 bg-emerald-500 rounded-full shadow-sm shadow-emerald-200"></span>
+<span class="text-[9px] text-emerald-500 font-bold mt-1 uppercase">Online</span>
+</div>
+</div>
+<div class="p-4 flex items-center gap-4 hover:bg-slate-50 transition-colors">
+<img alt="User Avatar" class="w-11 h-11 rounded-full object-cover border-2 border-slate-100 shadow-sm" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDW-ycYF0h-fEnRpU9n24ew3Ymmux5WcFGlPn1Zdb1iuXNjup0dW8kj5DfH7_PLOVwsTsFxrrf_z2rSIQ4dWfFQoRt4dkBg8k18c22SBSwGZc5jBFhCajvSpaCR4YkZM_yZlA8eri2sOLHpL_GKzlYCQlvOUr_lfns8KQsVVXUu9gtxMQRZmu3xCzEE0z-R_5lVcJVEjdB7YIbpgbcQf0GXtLqmZ8GM7iiM_VDz5ibT2y5CIUv_ghk8VLE5PTB7UOTIQQln5HtP9VoP"/>
+<div class="flex-1">
+<p class="text-sm font-bold text-slate-900 text-slate-400">David Wright</p>
+<p class="text-[11px] text-slate-400 font-medium">Operations</p>
+</div>
+<div class="flex flex-col items-end">
+<span class="w-2.5 h-2.5 bg-slate-300 rounded-full"></span>
+<span class="text-[9px] text-slate-300 font-bold mt-1 uppercase">Away</span>
+</div>
+</div>
+<div class="p-4 flex items-center gap-4 hover:bg-slate-50 transition-colors">
+<img alt="User Avatar" class="w-11 h-11 rounded-full object-cover border-2 border-emerald-100 shadow-sm" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDZwPHzrWz8KI1gajIUONDo0o3BiPhdwvSwJul9xbTAfulpwbR47HFIyuM6wJVazmHNeNeZBs-0Xq2ZzSqK0ygiclzP-T4ouPsGVmg9zbSnvZFynZWhm-RoJ32AilIY5dkhngOM65kvAGJlbS_3U9wNIW0vZaIMltgIZwViPM-0bJbULKJr5qJmLpobyqBhPxAnoi76FKdeFVP7p5yoLApVr8JgKrdImofHnODBBswQEa3z-De9SduCmSsIsmQ6_XoBI-S8yRElpHxz"/>
+<div class="flex-1">
+<p class="text-sm font-bold text-slate-900">Elena Rossi</p>
+<p class="text-[11px] text-slate-400 font-medium">Marketing</p>
+</div>
+<div class="flex flex-col items-end">
+<span class="w-2.5 h-2.5 bg-emerald-500 rounded-full shadow-sm shadow-emerald-200"></span>
+<span class="text-[9px] text-emerald-500 font-bold mt-1 uppercase">Online</span>
+</div>
+</div>
+</div>
+<button class="w-full py-4 text-xs font-extrabold text-slate-400 hover:text-primary transition-all bg-slate-50 hover:bg-primary/5 uppercase tracking-widest">
+View All 128 Users
+</button>
+</div>
+</div>
+</div>
+<section class="bg-white border border-slate-100 p-8 rounded-2xl shadow-sm">
+<div class="flex items-center justify-between mb-10">
+<div>
+<h2 class="text-xl font-extrabold text-slate-900">API Usage Analytics</h2>
+<p class="text-sm text-slate-400 mt-1">Total system-wide tool calls (24h period)</p>
+</div>
+<div class="flex items-center gap-3">
+<div class="flex p-1 bg-slate-50 rounded-xl">
+<button class="px-4 py-1.5 text-xs font-bold bg-white text-slate-900 rounded-lg shadow-sm">24H</button>
+<button class="px-4 py-1.5 text-xs font-bold text-slate-400 hover:text-slate-600">7D</button>
+<button class="px-4 py-1.5 text-xs font-bold text-slate-400 hover:text-slate-600">1M</button>
+</div>
+<button class="p-2 bg-slate-50 text-slate-400 rounded-xl hover:text-slate-600">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</div>
+</div>
+<div class="relative h-48 w-full flex items-end justify-between gap-4 px-2">
+<div class="bg-primary/10 w-full rounded-t-xl transition-all hover:bg-primary/40 h-[40%] group relative">
+<span class="absolute -top-10 left-1/2 -translate-x-1/2 text-[10px] font-bold bg-slate-900 text-white px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">4.2k</span>
+</div>
+<div class="bg-primary/10 w-full rounded-t-xl transition-all hover:bg-primary/40 h-[55%] group relative">
+<span class="absolute -top-10 left-1/2 -translate-x-1/2 text-[10px] font-bold bg-slate-900 text-white px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">5.8k</span>
+</div>
+<div class="bg-primary/10 w-full rounded-t-xl transition-all hover:bg-primary/40 h-[35%] group relative">
+<span class="absolute -top-10 left-1/2 -translate-x-1/2 text-[10px] font-bold bg-slate-900 text-white px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">3.1k</span>
+</div>
+<div class="bg-primary/10 w-full rounded-t-xl transition-all hover:bg-primary/40 h-[70%] group relative">
+<span class="absolute -top-10 left-1/2 -translate-x-1/2 text-[10px] font-bold bg-slate-900 text-white px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">7.4k</span>
+</div>
+<div class="bg-primary/20 w-full rounded-t-xl transition-all hover:bg-primary/50 h-[90%] group relative">
+<span class="absolute -top-10 left-1/2 -translate-x-1/2 text-[10px] font-bold bg-slate-900 text-white px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">9.2k</span>
+</div>
+<div class="bg-primary/30 w-full rounded-t-xl transition-all hover:bg-primary/60 h-[85%] group relative">
+<span class="absolute -top-10 left-1/2 -translate-x-1/2 text-[10px] font-bold bg-slate-900 text-white px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">8.8k</span>
+</div>
+<div class="bg-primary w-full rounded-t-xl shadow-lg shadow-primary/20 h-[95%] group relative">
+<span class="absolute -top-10 left-1/2 -translate-x-1/2 text-[10px] font-bold bg-slate-900 text-white px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">10.1k</span>
+</div>
+<div class="bg-primary/10 w-full rounded-t-xl transition-all hover:bg-primary/40 h-[60%] group relative">
+<span class="absolute -top-10 left-1/2 -translate-x-1/2 text-[10px] font-bold bg-slate-900 text-white px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">6.2k</span>
+</div>
+<div class="bg-primary/10 w-full rounded-t-xl transition-all hover:bg-primary/40 h-[45%] group relative">
+<span class="absolute -top-10 left-1/2 -translate-x-1/2 text-[10px] font-bold bg-slate-900 text-white px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">4.9k</span>
+</div>
+<div class="bg-primary/10 w-full rounded-t-xl transition-all hover:bg-primary/40 h-[65%] group relative">
+<span class="absolute -top-10 left-1/2 -translate-x-1/2 text-[10px] font-bold bg-slate-900 text-white px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">6.8k</span>
+</div>
+</div>
+<div class="flex justify-between mt-6 text-[10px] text-slate-400 font-extrabold uppercase tracking-[0.2em] px-2">
+<span>00:00</span>
+<span>04:00</span>
+<span>08:00</span>
+<span>12:00</span>
+<span>16:00</span>
+<span>20:00</span>
+<span class="text-primary">NOW</span>
+</div>
+</section>
+</div>
+<footer class="p-8 mt-4 bg-slate-50 border-t border-slate-100 text-center">
+<p class="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+Nexus AI Management Platform v2.4.0 • Enterprise Core • © 2024 Systems Inc.
+</p>
+</footer>
+</main>
+</div>
+
+</body></html>

@@ -1,0 +1,23 @@
+# Environment
+.env
+
+# Docker 容器数据卷 (运行时数据，不提交)
+docker/volumes/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Node
+node_modules/
+dist/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store

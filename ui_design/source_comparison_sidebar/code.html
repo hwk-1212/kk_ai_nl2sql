@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Fresh Source Comparison</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style type="text/tailwindcss">
+        :root {
+            --primary-color: #10b981;--primary-light: #ecfdf5;
+            --accent-soft: #f0fdf4;
+            --highlight-lemon: #fefce8;
+            --highlight-mint: #f0fdf4;
+            --sidebar-glass: rgba(255, 255, 255, 0.7);
+            --border-subtle: #f1f5f9;
+        }
+        body { font-family: 'Inter', sans-serif; }
+        .custom-scrollbar::-webkit-scrollbar { width: 5px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
+        .glass-sidebar {
+            background: var(--sidebar-glass);
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
+        }
+        .dimming-overlay {
+            background-color: rgba(15, 23, 42, 0.25);
+            backdrop-filter: blur(2px);
+        }
+        .resize-handle:hover {
+            background-color: var(--primary-color);
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#10b981",
+                        "mint": {
+                            50: "#ecfdf5",
+                            100: "#d1fae5",
+                            500: "#10b981",
+                            600: "#059669"
+                        }
+                    },
+                    fontFamily: {
+                        "display": ["Inter"]
+                    },
+                    borderRadius: {
+                        "xl": "1rem",
+                        "2xl": "1.5rem"
+                    },
+                },
+            },
+        }
+    </script>
+</head>
+<body class="bg-[#f8fafc] text-slate-900 h-screen overflow-hidden flex flex-col font-display">
+<header class="h-16 border-b border-slate-100 flex items-center justify-between px-8 bg-white/80 backdrop-blur-md z-50">
+<div class="flex items-center gap-3">
+<div class="w-9 h-9 bg-mint-500/10 rounded-xl flex items-center justify-center">
+<span class="material-icons-round text-mint-500 text-xl">auto_awesome</span>
+</div>
+<h1 class="font-bold text-lg tracking-tight text-slate-800">Source<span class="text-mint-500">Compare</span></h1>
+</div>
+<div class="flex items-center gap-6">
+<div class="px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-600 text-[11px] font-bold uppercase tracking-wider flex items-center gap-2 border border-emerald-100">
+<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+            Verified Analysis
+        </div>
+<img alt="User profile avatar portrait" class="w-9 h-9 rounded-full border-2 border-white shadow-sm" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAt5I7g4u3xXRRgrxtnA3sooPkfso36t3ZVHvalY8D7WrNzfSCUamIjXvWfUy3zDHvJmajzsnf1hH9mDhp93lu5WK39aCtb7j0EQtHhHm1UsqlI-pILAtXF5-ULSACaDuGZ6R7h1nZ5jmMbm8fCdoma95qtGCgEBTHgFRzRMPjJcOvjIJd76tS_Zub2maiXBXnOzjecJkkCgB7Ib0HiwjuB59b_0411NLiOP3RWP23uxHRJF34nBD1rsKQLj_lRsCFJgC9sciL0lP9O"/>
+</div>
+</header>
+<main class="flex-1 flex overflow-hidden relative">
+<section class="flex-1 flex flex-col bg-white relative transition-all duration-500 overflow-hidden">
+<div class="absolute inset-0 dimming-overlay z-10"></div>
+<div class="flex-1 overflow-y-auto p-8 space-y-10 custom-scrollbar opacity-60">
+<div class="flex gap-5 max-w-3xl">
+<div class="w-9 h-9 rounded-xl bg-slate-50 border border-slate-100 flex-shrink-0 flex items-center justify-center">
+<span class="material-icons-round text-slate-400 text-sm">person</span>
+</div>
+<div class="space-y-2">
+<p class="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">Inquiry</p>
+<div class="p-5 bg-slate-50 rounded-2xl rounded-tl-none border border-slate-100 text-slate-700 leading-relaxed shadow-sm">
+                        Can you analyze the Q3 revenue growth and confirm if the 12% increase includes the EMEA region acquisition?
+                    </div>
+</div>
+</div>
+<div class="flex gap-5 max-w-4xl">
+<div class="w-9 h-9 rounded-xl bg-mint-500 flex-shrink-0 flex items-center justify-center shadow-lg shadow-mint-500/20">
+<span class="material-icons-round text-sm text-white">auto_awesome</span>
+</div>
+<div class="space-y-2">
+<p class="text-xs font-bold text-mint-500 uppercase tracking-widest ml-1">Insights</p>
+<div class="p-6 bg-white rounded-2xl rounded-tl-none border border-slate-100 shadow-xl shadow-slate-200/40 space-y-5">
+<p class="text-[15px] leading-relaxed text-slate-600">Based on the 2023 Fiscal Report, the reported 12.4% revenue increase specifically excludes the EMEA acquisition impact for the current reporting period.</p>
+<div class="flex items-center gap-3 pt-2">
+<button class="flex items-center gap-2.5 px-4 py-2 bg-mint-500/5 hover:bg-mint-500/10 text-mint-600 rounded-xl border border-mint-500/10 transition-all text-xs font-semibold">
+<span class="material-symbols-outlined text-lg">description</span>
+                                FY2023_Financials.pdf
+                            </button>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="p-6 border-t border-slate-50 bg-white/50 backdrop-blur-sm z-0">
+<div class="max-w-4xl mx-auto relative">
+<input class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 pr-14 focus:outline-none text-sm" disabled="" placeholder="Ask a follow-up..." type="text"/>
+<button class="absolute right-3 top-2.5 p-2 bg-slate-200 text-white rounded-xl cursor-not-allowed">
+<span class="material-icons-round">arrow_forward</span>
+</button>
+</div>
+</div>
+</section>
+<aside class="w-[600px] glass-sidebar flex flex-col z-30 shadow-[-10px_0_50px_rgba(0,0,0,0.08)] border-l border-white/20 relative">
+<div class="absolute left-0 top-0 bottom-0 w-1.5 cursor-col-resize group z-40">
+<div class="h-full w-0.5 bg-slate-200/50 group-hover:bg-mint-500 transition-colors mx-auto rounded-full mt-0 resize-handle"></div>
+</div>
+<div class="px-6 py-5 flex items-center justify-between bg-white/40 border-b border-slate-200/30">
+<div class="flex items-center gap-4">
+<button class="w-10 h-10 flex items-center justify-center rounded-xl bg-mint-500/10 text-mint-600 border border-mint-500/20 hover:bg-mint-500/20 transition-all">
+<span class="material-icons-round">chevron_right</span>
+</button>
+<div>
+<h2 class="font-bold text-sm text-slate-800 tracking-tight">Source Reference</h2>
+<p class="text-[10px] text-mint-600/70 font-bold uppercase tracking-widest">Fresh Analysis Mode</p>
+</div>
+</div>
+<button class="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-white/50 text-slate-400 hover:text-slate-600 transition-colors">
+<span class="material-icons-round text-xl">close</span>
+</button>
+</div>
+<div class="px-6 py-3 flex items-center justify-between bg-mint-50/40 border-b border-mint-100/50 text-[11px] font-medium text-slate-500">
+<div class="flex gap-5">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[16px] text-mint-600">calendar_today</span>
+                    Oct 24, 2023
+                </div>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[16px] text-mint-600">menu_book</span>
+                    42 Pages
+                </div>
+</div>
+<div class="flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/60 text-mint-600 border border-mint-100 shadow-sm font-bold uppercase tracking-tighter text-[10px]">
+<span class="material-symbols-outlined text-[14px]">verified</span>
+                Certified
+            </div>
+</div>
+<div class="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-8">
+<div class="space-y-4">
+<div class="flex items-center justify-between">
+<h3 class="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Original Excerpt</h3>
+<div class="text-[10px] font-semibold text-mint-600 px-2 py-0.5 bg-mint-100/50 rounded-full border border-mint-200/30">SEC 4.2 / P. 14</div>
+</div>
+<div class="bg-white p-7 rounded-2xl border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.02)] relative overflow-hidden group">
+<div class="text-[14px] leading-relaxed text-slate-600 font-normal">
+                        ...operating margins remained stable at 18.5% throughout the quarter. 
+<span class="bg-[#fefce8] text-slate-800 px-1 py-0.5 rounded-lg border border-yellow-200/50 shadow-sm font-medium">
+                            Year-over-year revenue growth of 12.4% was driven primarily by organic sales in the North American market. 
+                            This figure explicitly excludes impact from the EMEA acquisition finalized on September 12.
+                        </span> 
+                        The integration of EMEA assets is projected to contribute to Q4 figures...
+                    </div>
+</div>
+</div>
+<div class="space-y-5">
+<div class="flex items-center gap-3">
+<h3 class="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Side-by-Side Comparison</h3>
+<div class="h-px flex-1 bg-slate-100/60"></div>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div class="bg-mint-50/50 rounded-2xl border border-mint-100/80 p-5 space-y-3 hover:border-mint-200 transition-all">
+<div class="flex items-center gap-2 text-mint-600">
+<span class="material-icons-round text-sm">auto_awesome</span>
+<span class="text-[10px] font-bold uppercase tracking-widest">AI Agent</span>
+</div>
+<p class="text-[13px] text-slate-700 leading-normal font-medium">
+                            Confirmed 12.4% growth <span class="bg-mint-100/60 text-mint-700 px-1.5 rounded-md">omits</span> EMEA impact.
+                        </p>
+</div>
+<div class="bg-slate-50/80 rounded-2xl border border-slate-200/50 p-5 space-y-3 hover:border-slate-300 transition-all">
+<div class="flex items-center gap-2 text-slate-500">
+<span class="material-icons-round text-sm">article</span>
+<span class="text-[10px] font-bold uppercase tracking-widest">Source Text</span>
+</div>
+<p class="text-[13px] text-slate-700 leading-normal font-medium">
+                            Growth <span class="bg-slate-200/40 text-slate-800 px-1.5 rounded-md italic">explicitly excludes</span> EMEA impact.
+                        </p>
+</div>
+</div>
+<div class="bg-white border border-slate-100 rounded-2xl p-4 flex items-center justify-between shadow-sm">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-mint-50 flex items-center justify-center border border-mint-100">
+<span class="material-icons-round text-mint-500 text-lg">check_circle</span>
+</div>
+<div>
+<span class="block text-[13px] font-bold text-slate-700">Perfect Alignment</span>
+<span class="block text-[10px] text-mint-600 font-bold">99.8% FIDELITY</span>
+</div>
+</div>
+<button class="px-3 py-1.5 text-[11px] text-mint-600 font-bold border border-mint-200 rounded-lg hover:bg-mint-50 transition-colors">
+                        Traceability
+                    </button>
+</div>
+</div>
+</div>
+<div class="p-6 bg-white/60 border-t border-slate-200/30 space-y-4">
+<button class="w-full bg-mint-500 hover:bg-mint-600 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-3 transition-all shadow-lg shadow-mint-500/20 active:scale-[0.98]">
+<span class="material-symbols-outlined text-xl">open_in_new</span>
+                Explore Full Document
+            </button>
+<div class="flex gap-4">
+<button class="flex-1 py-3 px-4 text-[12px] font-bold text-slate-600 bg-white hover:bg-slate-50 rounded-xl border border-slate-200 transition-all flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-lg">flag</span>
+                    Flag Issue
+                </button>
+<button class="w-12 h-12 flex items-center justify-center text-mint-600 bg-white hover:bg-mint-50 rounded-xl border border-mint-200 transition-all">
+<span class="material-symbols-outlined text-xl">download</span>
+</button>
+</div>
+</div>
+</aside>
+</main>
+<div class="fixed bottom-10 left-10 bg-white/90 backdrop-blur-md text-slate-600 px-5 py-3 rounded-2xl text-[12px] font-semibold border border-mint-100 flex items-center gap-3 shadow-2xl z-50">
+<div class="flex gap-1">
+<span class="w-1.5 h-1.5 bg-mint-500 rounded-full animate-bounce" style="animation-delay: 0s"></span>
+<span class="w-1.5 h-1.5 bg-mint-500 rounded-full animate-bounce" style="animation-delay: 0.2s"></span>
+<span class="w-1.5 h-1.5 bg-mint-500 rounded-full animate-bounce" style="animation-delay: 0.4s"></span>
+</div>
+    Syncing sources...
+</div>
+
+</body></html>

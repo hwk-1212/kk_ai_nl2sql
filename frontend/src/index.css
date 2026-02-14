@@ -1,0 +1,106 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    margin: 0;
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    background-color: #FAFBFC;
+    color: #334155;
+  }
+  .dark body {
+    background-color: #0f172a;
+    color: #e2e8f0;
+  }
+}
+
+@layer components {
+  /* glass sidebar */
+  .glass-sidebar {
+    background: rgba(255, 255, 255, 0.6);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+  .dark .glass-sidebar {
+    background: rgba(30, 41, 59, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  /* gradient button */
+  .btn-gradient {
+    background: linear-gradient(135deg, #4FD1C5 0%, #38B2AC 100%);
+  }
+  .btn-gradient:hover {
+    opacity: 0.9;
+  }
+  .btn-gradient:active {
+    transform: scale(0.98);
+  }
+
+  /* thinking step timeline */
+  .thought-step-line {
+    position: relative;
+  }
+  .thought-step-line::before {
+    content: '';
+    position: absolute;
+    left: 9px;
+    top: 26px;
+    bottom: -10px;
+    width: 2px;
+    background: #E2E8F0;
+  }
+  .dark .thought-step-line::before {
+    background: #334155;
+  }
+  .thought-step-line:last-child::before {
+    display: none;
+  }
+}
+
+/* scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #E2E8F0;
+  border-radius: 10px;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(150, 150, 150, 0.3);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #CBD5E1;
+}
+
+/* highlight.js theme */
+pre code.hljs {
+  background: transparent !important;
+  padding: 1rem !important;
+}
+
+/* prose overrides */
+.prose table {
+  border-collapse: collapse;
+  width: 100%;
+}
+.prose th, .prose td {
+  border: 1px solid;
+}
+
+/* toast animation */
+@keyframes slideInFromRight {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+.animate-in.slide-in-from-right {
+  animation: slideInFromRight 0.3s ease-out;
+}
