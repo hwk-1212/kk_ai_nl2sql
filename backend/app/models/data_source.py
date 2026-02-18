@@ -2,7 +2,7 @@
 import uuid
 from datetime import datetime, timezone
 from sqlalchemy import String, Integer, DateTime, ForeignKey, Text, text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from app.models.base import Base
 
@@ -24,6 +24,8 @@ class DataSource(Base):
     source_type: Mapped[str] = mapped_column(String(20), nullable=False, default="upload")
     file_name: Mapped[str | None] = mapped_column(String(500), nullable=True)
     file_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    file_type: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    minio_path: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
     table_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     meta: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
@@ -35,4 +37,8 @@ class DataSource(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
         server_default=text("now()"), onupdate=lambda: datetime.now(timezone.utc)
+    )
+
+    tables: Mapped[list["DataTable"]] = relationship(
+        "DataTable", back_populates="data_source", cascade="all, delete-orphan"
     )

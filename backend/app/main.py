@@ -20,6 +20,8 @@ from app.core.rag.retriever import RAGRetriever
 from app.core.rag.file2md import File2Markdown
 from app.core.tools.registry import ToolRegistry
 from app.core.tools.builtin import register_web_search
+from app.core.data.manager import DataManager
+from app.core.data.isolated_executor import IsolatedSQLExecutor
 from app.db.minio_client import minio_client as global_minio_client
 
 from app.core.logging import setup_logging
@@ -49,6 +51,21 @@ async def lifespan(app: FastAPI):
             "ALTER TABLE conversations ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES tenants(id) ON DELETE SET NULL",
             "ALTER TABLE messages ADD COLUMN IF NOT EXISTS extra JSONB",
             "ALTER TABLE mcp_servers ADD COLUMN IF NOT EXISTS env JSONB",
+        ]:
+            try:
+                await conn.execute(sa_text(stmt))
+            except Exception:
+                pass
+
+        # Phase 3A: 数据管理模块新增字段
+        for stmt in [
+            "ALTER TABLE data_sources ADD COLUMN IF NOT EXISTS file_type VARCHAR(20)",
+            "ALTER TABLE data_sources ADD COLUMN IF NOT EXISTS minio_path VARCHAR(1000)",
+            "ALTER TABLE data_tables ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES tenants(id) ON DELETE SET NULL",
+            "ALTER TABLE data_tables ADD COLUMN IF NOT EXISTS display_name VARCHAR(255) NOT NULL DEFAULT ''",
+            "ALTER TABLE data_tables ADD COLUMN IF NOT EXISTS is_writable BOOLEAN NOT NULL DEFAULT TRUE",
+            "ALTER TABLE data_tables ADD COLUMN IF NOT EXISTS visibility VARCHAR(20) NOT NULL DEFAULT 'private'",
+            "ALTER TABLE data_tables ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()",
         ]:
             try:
                 await conn.execute(sa_text(stmt))
@@ -169,6 +186,11 @@ async def lifespan(app: FastAPI):
     register_web_search(tool_registry)
     app.state.tool_registry = tool_registry
     logger.info(f"✅ Tool Registry: {len(tool_registry.get_all_tools())} builtin tools registered")
+
+    # 初始化数据管理模块
+    app.state.data_manager = DataManager(engine=engine, minio_client=global_minio_client)
+    app.state.isolated_executor = IsolatedSQLExecutor(engine=engine)
+    logger.info("✅ DataManager & IsolatedSQLExecutor initialized")
 
     yield
 
