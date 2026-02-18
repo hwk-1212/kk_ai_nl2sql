@@ -57,6 +57,7 @@ export interface Message {
   model?: ModelId
   createdAt: string
   isStreaming?: boolean
+  chartConfig?: ChartConfig
 }
 
 export interface Conversation {
@@ -155,4 +156,185 @@ export interface HealthResponse {
   version: string
   services: Record<string, string>
   timestamp: string
+}
+
+// ========== Data Management ==========
+export interface DataSource {
+  id: string
+  userId: string
+  name: string
+  sourceType: 'excel' | 'csv' | 'sqlite'
+  originalFilename: string
+  fileSize: number
+  tableCount: number
+  status: 'uploading' | 'processing' | 'ready' | 'failed'
+  errorMessage?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ColumnInfo {
+  name: string
+  type: string
+  nullable: boolean
+  comment?: string
+}
+
+export interface DataTable {
+  id: string
+  dataSourceId: string
+  userId: string
+  pgSchema: string
+  pgTableName: string
+  displayName: string
+  description?: string
+  columnSchema: ColumnInfo[]
+  rowCount: number
+  isWritable: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface TableDataPage {
+  data: Record<string, any>[]
+  totalCount: number
+  nextCursor: string | null
+  hasMore: boolean
+}
+
+// ========== Process Panel ==========
+export interface ProcessStep {
+  id: string
+  type: 'reasoning' | 'tool_call' | 'tool_result' | 'sql_generated' | 'sql_result' | 'chart_config' | 'rag_source' | 'context_compressed'
+  title: string
+  status: 'running' | 'success' | 'error'
+  startTime: number
+  endTime?: number
+  data: any
+}
+
+// ========== Chart ==========
+export interface ChartConfig {
+  chartType: 'bar' | 'line' | 'pie' | 'area' | 'scatter' | 'table'
+  title?: string
+  xAxis?: { field: string; label?: string }
+  yAxis?: { field: string; label?: string }
+  series?: { field: string; label?: string; color?: string }[]
+  colorMapping?: Record<string, string>
+  data: Record<string, any>[]
+}
+
+// ========== Metrics ==========
+export interface Metric {
+  id: string
+  userId: string
+  name: string
+  displayName: string
+  description?: string
+  formula: string
+  dataTableId?: string
+  dataTableName?: string
+  aggregation?: string
+  unit?: string
+  tags: string[]
+  status: 'active' | 'draft' | 'deprecated'
+  createdAt: string
+  updatedAt: string
+}
+
+export interface Dimension {
+  id: string
+  userId: string
+  name: string
+  displayName: string
+  description?: string
+  sourceColumn: string
+  dataTableId?: string
+  dataTableName?: string
+  dimType: 'categorical' | 'temporal' | 'numeric'
+  createdAt: string
+}
+
+export interface BusinessTerm {
+  id: string
+  userId: string
+  term: string
+  canonicalName: string
+  description?: string
+  sqlExpression?: string
+  synonyms?: string
+  createdAt: string
+}
+
+// ========== Reports ==========
+export interface ReportSection {
+  id: string
+  title: string
+  content: string
+  children?: ReportSection[]
+}
+
+export interface Report {
+  id: string
+  userId: string
+  title: string
+  reportType: 'manual' | 'scheduled'
+  status: 'draft' | 'generating' | 'ready' | 'failed'
+  content?: string
+  sections?: ReportSection[]
+  templateId?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ReportTemplate {
+  id: string
+  name: string
+  description?: string
+  category?: string
+  outline?: ReportSection[]
+  isSystem: boolean
+  createdAt: string
+}
+
+export interface ReportSchedule {
+  id: string
+  userId: string
+  templateId: string
+  templateName?: string
+  cronExpression: string
+  cronDescription?: string
+  isActive: boolean
+  lastRunAt?: string
+  nextRunAt?: string
+  createdAt: string
+}
+
+// ========== Data Permissions ==========
+export interface DataRole {
+  id: string
+  tenantId?: string
+  name: string
+  description?: string
+  userCount: number
+  createdAt: string
+}
+
+export interface RoleTablePermission {
+  tableId: string
+  tableName: string
+  canRead: boolean
+  canWrite: boolean
+}
+
+export interface RoleColumnPermission {
+  columnName: string
+  visible: boolean
+  maskType?: 'none' | 'phone' | 'email' | 'id_card' | 'full_mask' | 'last4'
+}
+
+export interface RoleRowFilter {
+  id: string
+  filterExpression: string
+  description?: string
 }

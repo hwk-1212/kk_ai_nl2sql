@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Conversation, Message, ModelId, MemoryFragment, RAGSource, ToolCall } from '@/types'
+import type { Conversation, Message, ModelId, MemoryFragment, RAGSource, ToolCall, ProcessStep } from '@/types'
 import { conversationsApi, streamChat, type ConvResponse, type ConvDetail, type MemoryRecallPayload } from '@/services/api'
 
 interface ChatState {
@@ -12,6 +12,8 @@ interface ChatState {
   thinkingEnabled: boolean
   loaded: boolean
   selectedKBIds: string[]
+  processSteps: ProcessStep[]
+  showProcessPanel: boolean
 
   setCurrentId: (id: string | null) => void
   setSelectedModel: (m: ModelId) => void
@@ -26,6 +28,10 @@ interface ChatState {
   sendMessage: (content: string) => Promise<void>
   stopStreaming: () => void
   regenerate: (messageId: string) => void
+  addProcessStep: (step: ProcessStep) => void
+  updateProcessStep: (id: string, updates: Partial<ProcessStep>) => void
+  clearProcessSteps: () => void
+  toggleProcessPanel: () => void
 }
 
 let abortController: AbortController | null = null
@@ -92,6 +98,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   thinkingEnabled: false,
   loaded: false,
   selectedKBIds: [],
+  processSteps: [],
+  showProcessPanel: false,
 
   setCurrentId: (currentId) => {
     set({ currentId })
@@ -354,6 +362,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
     abortController = null
   },
+
+  addProcessStep: (step) => set((s) => ({ processSteps: [...s.processSteps, step] })),
+
+  updateProcessStep: (id, updates) => set((s) => ({
+    processSteps: s.processSteps.map((ps) => ps.id === id ? { ...ps, ...updates } : ps),
+  })),
+
+  clearProcessSteps: () => set({ processSteps: [] }),
+
+  toggleProcessPanel: () => set((s) => ({ showProcessPanel: !s.showProcessPanel })),
 
   regenerate: (messageId: string) => {
     const { currentId, conversations } = get()

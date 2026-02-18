@@ -1,12 +1,14 @@
 import { memo, useState } from 'react'
 import { Copy, Check, RefreshCw, User, Sparkles, ThumbsUp } from 'lucide-react'
-import type { Message } from '@/types'
+import type { Message, ChartConfig } from '@/types'
 import MarkdownContent from './MarkdownContent'
 import ThinkingBlock from '@/components/deepseek/ThinkingBlock'
 import StreamingIndicator from '@/components/deepseek/StreamingIndicator'
 import ToolCallBlock from '@/components/tools/ToolCallBlock'
 import MemoryIndicator from '@/components/tools/MemoryIndicator'
 import RAGSourceIndicator from '@/components/tools/RAGSourceIndicator'
+import ChartRenderer from '@/components/chart/ChartRenderer'
+import ChartTypeSelector from '@/components/chart/ChartTypeSelector'
 import { modelOptions } from '@/mocks/models'
 
 interface MessageItemProps {
@@ -16,6 +18,8 @@ interface MessageItemProps {
   onRegenerate?: (id: string) => void
 }
 
+const AVAILABLE_CHART_TYPES = ['bar', 'line', 'pie', 'area', 'scatter', 'table']
+
 export default memo(function MessageItem({
   message,
   isStreamingContent,
@@ -23,6 +27,7 @@ export default memo(function MessageItem({
   onRegenerate,
 }: MessageItemProps) {
   const [copied, setCopied] = useState(false)
+  const [chartType, setChartType] = useState<string | null>(null)
   const isUser = message.role === 'user'
   const isStreaming = !!isStreamingContent || (!!isStreamingReasoning && !isStreamingContent)
 
@@ -106,6 +111,26 @@ export default memo(function MessageItem({
         ) : isStreaming && displayReasoning ? (
           <div className="text-sm text-slate-400 italic">正在组织回答...</div>
         ) : null}
+
+        {/* chart */}
+        {!isUser && message.chartConfig && (
+          <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-3xl p-5 shadow-soft space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                {message.chartConfig.title || '数据图表'}
+              </h4>
+              <ChartTypeSelector
+                currentType={chartType || message.chartConfig.chartType}
+                availableTypes={AVAILABLE_CHART_TYPES}
+                onChange={setChartType}
+              />
+            </div>
+            <ChartRenderer
+              config={{ ...message.chartConfig, chartType: (chartType || message.chartConfig.chartType) as ChartConfig['chartType'] }}
+              height={280}
+            />
+          </div>
+        )}
 
         {/* actions bar */}
         {!isUser && !isStreaming && displayContent && (
