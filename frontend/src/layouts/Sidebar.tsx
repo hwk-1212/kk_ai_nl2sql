@@ -1,4 +1,4 @@
-import { PanelLeftClose, PanelLeft, Plug, BookOpen, Wrench, Shield } from 'lucide-react'
+import { PanelLeftClose, PanelLeft, Plug, BookOpen, Wrench, Shield, Database, BarChart3, FileText, ShieldCheck } from 'lucide-react'
 import { useUIStore } from '@/stores/uiStore'
 import { useChatStore } from '@/stores/chatStore'
 import { useAuthStore } from '@/stores/authStore'
@@ -37,7 +37,7 @@ export default function Sidebar() {
             <div className="w-9 h-9 btn-gradient rounded-xl flex items-center justify-center shadow-lg shadow-primary/20">
               <span className="text-white text-lg font-black">K</span>
             </div>
-            <span className="font-bold text-lg tracking-tight text-slate-800 dark:text-white">KK GPT</span>
+            <span className="font-bold text-lg tracking-tight text-slate-800 dark:text-white">KK NL2SQL</span>
           </div>
           <button
             onClick={toggleSidebar}
@@ -68,6 +68,39 @@ export default function Sidebar() {
 
         {/* bottom nav */}
         <div className="px-3 py-2 space-y-0.5 border-t border-white/30 dark:border-slate-700/50">
+          <button
+            onClick={() => navigate('/data')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm transition-colors ${
+              location.pathname === '/data'
+                ? 'bg-white/80 dark:bg-slate-700 shadow-sm text-primary font-semibold'
+                : 'text-slate-500 dark:text-slate-400 hover:bg-white/50 dark:hover:bg-slate-700/50'
+            }`}
+          >
+            <Database size={18} />
+            数据管理
+          </button>
+          <button
+            onClick={() => navigate('/metrics')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm transition-colors ${
+              location.pathname === '/metrics'
+                ? 'bg-white/80 dark:bg-slate-700 shadow-sm text-primary font-semibold'
+                : 'text-slate-500 dark:text-slate-400 hover:bg-white/50 dark:hover:bg-slate-700/50'
+            }`}
+          >
+            <BarChart3 size={18} />
+            指标管理
+          </button>
+          <button
+            onClick={() => navigate('/reports')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm transition-colors ${
+              location.pathname === '/reports'
+                ? 'bg-white/80 dark:bg-slate-700 shadow-sm text-primary font-semibold'
+                : 'text-slate-500 dark:text-slate-400 hover:bg-white/50 dark:hover:bg-slate-700/50'
+            }`}
+          >
+            <FileText size={18} />
+            报告中心
+          </button>
           <button
             onClick={() => navigate('/tools')}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm transition-colors ${
@@ -102,6 +135,22 @@ export default function Sidebar() {
             知识库
           </button>
         </div>
+
+        {isAdmin && (
+          <div className="px-3 pb-1 space-y-0.5">
+            <button
+              onClick={() => navigate('/data-permissions')}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm transition-colors ${
+                location.pathname === '/data-permissions'
+                  ? 'bg-white/80 dark:bg-slate-700 shadow-sm text-primary font-semibold'
+                  : 'text-slate-500 dark:text-slate-400 hover:bg-white/50 dark:hover:bg-slate-700/50'
+              }`}
+            >
+              <ShieldCheck size={18} />
+              数据权限
+            </button>
+          </div>
+        )}
 
         {isAdmin && (
           <div className="px-3 pb-1">

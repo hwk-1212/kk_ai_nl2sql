@@ -1,4 +1,8 @@
-"""JWT + Password hashing utilities"""
+"""安全模块: JWT + 密码哈希 + 数据访问控制 + 字段脱敏 + SQL 安全检查。
+
+原 security.py 的 JWT / password 功能保留在此文件，
+新增的数据安全子模块在 data_access / masking / sql_checker 中。
+"""
 import uuid
 import bcrypt
 from datetime import datetime, timedelta, timezone

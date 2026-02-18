@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================
-# kk_gpt_aibot 数据恢复脚本
+# kk_nl2sql_aibot 数据恢复脚本
 # 用法: ./scripts/restore.sh <备份目录>
 # 例如: ./scripts/restore.sh ./backups/20260211_030000
 # ============================================================
@@ -39,20 +39,20 @@ fi
 # ============================================================
 # 1. PostgreSQL 恢复
 # ============================================================
-PG_DUMP="${BACKUP_DIR}/postgres_kk_gpt.dump"
+PG_DUMP="${BACKUP_DIR}/postgres_kk_nl2sql.dump"
 if [ -f "${PG_DUMP}" ]; then
     info "开始 PostgreSQL 恢复..."
     # 先终止所有连接
-    docker exec kk_gpt_postgres psql -U postgres -c \
-        "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='kk_gpt' AND pid <> pg_backend_pid();" \
+    docker exec kk_nl2sql_postgres psql -U postgres -c \
+        "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='kk_nl2sql' AND pid <> pg_backend_pid();" \
         2>/dev/null || true
     # 删除重建数据库
-    docker exec kk_gpt_postgres psql -U postgres -c "DROP DATABASE IF EXISTS kk_gpt;" 2>/dev/null || true
-    docker exec kk_gpt_postgres psql -U postgres -c "CREATE DATABASE kk_gpt OWNER kk_gpt;" 2>/dev/null || true
+    docker exec kk_nl2sql_postgres psql -U postgres -c "DROP DATABASE IF EXISTS kk_nl2sql;" 2>/dev/null || true
+    docker exec kk_nl2sql_postgres psql -U postgres -c "CREATE DATABASE kk_nl2sql OWNER kk_nl2sql;" 2>/dev/null || true
     # 恢复
-    docker exec -i kk_gpt_postgres pg_restore \
-        -U kk_gpt \
-        -d kk_gpt \
+    docker exec -i kk_nl2sql_postgres pg_restore \
+        -U kk_nl2sql \
+        -d kk_nl2sql \
         --verbose \
         --no-owner \
         --no-acl \
@@ -68,10 +68,10 @@ fi
 REDIS_DUMP="${BACKUP_DIR}/redis_dump.rdb"
 if [ -f "${REDIS_DUMP}" ]; then
     info "开始 Redis 恢复..."
-    docker exec kk_gpt_redis redis-cli SHUTDOWN NOSAVE 2>/dev/null || true
+    docker exec kk_nl2sql_redis redis-cli SHUTDOWN NOSAVE 2>/dev/null || true
     sleep 1
-    docker cp "${REDIS_DUMP}" kk_gpt_redis:/data/dump.rdb
-    docker start kk_gpt_redis 2>/dev/null || docker restart kk_gpt_redis
+    docker cp "${REDIS_DUMP}" kk_nl2sql_redis:/data/dump.rdb
+    docker start kk_nl2sql_redis 2>/dev/null || docker restart kk_nl2sql_redis
     info "Redis 恢复完成"
 else
     warn "跳过 Redis (dump 文件不存在)"
@@ -84,7 +84,7 @@ if [ -d "${BACKUP_DIR}/minio_files" ]; then
     info "开始 MinIO 恢复..."
     if command -v mc &>/dev/null; then
         mc alias set kk_backup http://localhost:9000 admin admin123456 --api S3v4 2>/dev/null || true
-        mc mirror "${BACKUP_DIR}/minio_files/" kk_backup/kk-gpt-files/ --overwrite 2>/dev/null || warn "MinIO mirror 恢复失败"
+        mc mirror "${BACKUP_DIR}/minio_files/" kk_backup/kk-nl2sql-files/ --overwrite 2>/dev/null || warn "MinIO mirror 恢复失败"
         info "MinIO 恢复完成"
     else
         warn "mc 未安装, 跳过 MinIO 恢复"
@@ -103,11 +103,11 @@ fi
 MILVUS_TAR="${BACKUP_DIR}/milvus_data.tar.gz"
 if [ -f "${MILVUS_TAR}" ]; then
     info "开始 Milvus 恢复 (需先停止 Milvus)..."
-    docker stop kk_gpt_milvus 2>/dev/null || true
+    docker stop kk_nl2sql_milvus 2>/dev/null || true
     sleep 2
     rm -rf ./docker/volumes/milvus/*
     tar xzf "${MILVUS_TAR}" -C ./docker/volumes/milvus/
-    docker start kk_gpt_milvus
+    docker start kk_nl2sql_milvus
     info "Milvus 恢复完成"
 else
     warn "跳过 Milvus (tar 文件不存在)"

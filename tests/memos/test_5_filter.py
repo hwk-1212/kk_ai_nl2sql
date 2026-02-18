@@ -13,7 +13,7 @@ headers = {
 query_text = "我去过哪些城市旅游？"
 
 data = {
-    "user_id": "kk_gpt_test_user_001",
+    "user_id": "kk_nl2sql_test_user_001",
     "query": query_text,
     "filter": {
         "and": [

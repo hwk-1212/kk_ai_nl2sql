@@ -13,7 +13,7 @@ headers = {
 query_text = "我的人物关键词是什么？"
 
 data = {
-    "user_id": "kk_gpt_test_user_001",
+    "user_id": "kk_nl2sql_test_user_001",
     "query": query_text,
 }
 

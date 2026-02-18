@@ -40,7 +40,7 @@ export default function RegisterPage() {
             <Sparkles size={30} className="text-white" />
           </div>
           <h1 className="text-2xl font-bold text-slate-800 tracking-tight">创建账户</h1>
-          <p className="text-sm text-slate-500 mt-1">注册 KK GPT AIBot</p>
+          <p className="text-sm text-slate-500 mt-1">注册 KK NL2SQL AIBot</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">

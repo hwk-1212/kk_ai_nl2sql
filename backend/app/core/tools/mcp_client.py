@@ -55,7 +55,7 @@ class MCPClient:
         payload = _jsonrpc_request("initialize", {
             "protocolVersion": "2025-03-26",
             "capabilities": {},
-            "clientInfo": {"name": "kk-gpt-mcp-client", "version": "1.0.0"},
+            "clientInfo": {"name": "kk-nl2sql-mcp-client", "version": "1.0.0"},
         })
 
         async with httpx.AsyncClient(timeout=self.timeout) as client:
@@ -155,7 +155,7 @@ class MCPClient:
             await self._stdio_call("initialize", {
                 "protocolVersion": "2025-03-26",
                 "capabilities": {},
-                "clientInfo": {"name": "kk-gpt-mcp-client", "version": "1.0.0"},
+                "clientInfo": {"name": "kk-nl2sql-mcp-client", "version": "1.0.0"},
             })
             # initialized 通知
             notif = _jsonrpc_notification("notifications/initialized")

@@ -6,16 +6,16 @@ class Settings(BaseSettings):
     """应用配置，从环境变量 / .env 读取"""
 
     # App
-    app_name: str = "kk_gpt_aibot"
+    app_name: str = "kk_nl2sql_aibot"
     app_version: str = "0.1.0"
     debug: bool = False
 
     # PostgreSQL
-    postgres_user: str = "kk_gpt"
-    postgres_password: str = "kk_gpt_secret_2026"
+    postgres_user: str = "kk_nl2sql"
+    postgres_password: str = "kk_nl2sql_secret_2026"
     postgres_host: str = "localhost"
     postgres_port: int = 5432
-    postgres_db: str = "kk_gpt"
+    postgres_db: str = "kk_nl2sql"
 
     @property
     def database_url(self) -> str:
@@ -62,7 +62,7 @@ class Settings(BaseSettings):
     qwen_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 
     # JWT
-    jwt_secret_key: str = "kk-gpt-aibot-jwt-secret-2026-change-in-production"
+    jwt_secret_key: str = "kk-nl2sql-aibot-jwt-secret-2026-change-in-production"
     jwt_algorithm: str = "HS256"
     jwt_access_token_expire_minutes: int = 15
     jwt_refresh_token_expire_days: int = 7
@@ -72,7 +72,19 @@ class Settings(BaseSettings):
     rag_top_k: int = 5
     rag_ann_top_k: int = 20
     rag_use_rerank: bool = True
-    minio_bucket: str = "kk-gpt-files"
+    minio_bucket: str = "kk-nl2sql-files"
+
+    # Celery
+    celery_broker_url: str = "redis://redis:6379/1"
+    celery_result_backend: str = "redis://redis:6379/2"
+
+    # 数据管理
+    max_upload_size_mb: int = 100
+    allowed_upload_types: str = "xlsx,csv,sqlite,xls"
+
+    # SQL 安全
+    sql_execution_timeout: int = 30
+    sql_max_result_rows: int = 1000
 
     # CORS
     cors_origins: list[str] = ["http://localhost:3000", "http://localhost:5173", "http://localhost"]

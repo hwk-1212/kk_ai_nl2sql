@@ -4,7 +4,7 @@ services:
   # =============================================================
   postgres:
     image: registry.cn-shenzhen.aliyuncs.com/colovu/postgres:12.4
-    container_name: kk_gpt_postgres
+    container_name: kk_nl2sql_postgres
     restart: unless-stopped
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
@@ -24,7 +24,7 @@ services:
   # =============================================================
   redis:
     image: redis:7-alpine
-    container_name: kk_gpt_redis
+    container_name: kk_nl2sql_redis
     restart: unless-stopped
     ports:
       - "${REDIS_PORT:-6379}:6379"
@@ -40,7 +40,7 @@ services:
   # etcd — Milvus 元数据存储 (对齐 Milvus 官方)
   # =============================================================
   etcd:
-    container_name: kk_gpt_milvus_etcd
+    container_name: kk_nl2sql_milvus_etcd
     image: quay.io/coreos/etcd:v3.5.25
     restart: unless-stopped
     environment:
@@ -61,7 +61,7 @@ services:
   # Milvus MinIO — Milvus 内部对象存储 (不暴露端口，仅内部通信)
   # =============================================================
   milvus-minio:
-    container_name: kk_gpt_milvus_minio
+    container_name: kk_nl2sql_milvus_minio
     image: minio/minio:RELEASE.2024-12-18T13-15-44Z
     restart: unless-stopped
     environment:
@@ -80,7 +80,7 @@ services:
   # Milvus — 向量数据库 standalone (对齐官方 v2.6.10)
   # =============================================================
   milvus:
-    container_name: kk_gpt_milvus
+    container_name: kk_nl2sql_milvus
     image: milvusdb/milvus:v2.6.10
     restart: unless-stopped
     command: ["milvus", "run", "standalone"]
@@ -112,7 +112,7 @@ services:
   # =============================================================
   attu:
     image: zilliz/attu:v2.6.3
-    container_name: kk_gpt_attu
+    container_name: kk_nl2sql_attu
     restart: unless-stopped
     ports:
       - "${ATTU_PORT:-8080}:3000"
@@ -127,7 +127,7 @@ services:
   # =============================================================
   minio:
     image: minio/minio:RELEASE.2025-04-22T22-12-26Z
-    container_name: kk_gpt_minio
+    container_name: kk_nl2sql_minio
     restart: unless-stopped
     ports:
       - "${MINIO_PORT:-9000}:9000"
@@ -150,15 +150,15 @@ services:
   # =============================================================
   backend:
     build: ./backend
-    container_name: kk_gpt_backend
+    container_name: kk_nl2sql_backend
     restart: unless-stopped
     ports:
       - "8000:8000"
     environment:
       - POSTGRES_HOST=postgres
-      - POSTGRES_USER=${POSTGRES_USER:-kk_gpt}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-kk_gpt_secret_2026}
-      - POSTGRES_DB=${POSTGRES_DB:-kk_gpt}
+      - POSTGRES_USER=${POSTGRES_USER:-kk_nl2sql}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-kk_nl2sql_secret_2026}
+      - POSTGRES_DB=${POSTGRES_DB:-kk_nl2sql}
       - REDIS_HOST=redis
       - MILVUS_HOST=milvus
       - MINIO_ENDPOINT=minio:9000
@@ -179,11 +179,50 @@ services:
       start_period: 15s
 
   # =============================================================
+  # Celery Worker — 异步任务执行
+  # =============================================================
+  celery-worker:
+    build: ./backend
+    container_name: kk_nl2sql_celery_worker
+    command: celery -A app.tasks worker --loglevel=info --concurrency=2
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      - POSTGRES_HOST=postgres
+      - REDIS_HOST=redis
+      - MILVUS_HOST=milvus
+      - MINIO_ENDPOINT=minio:9000
+    volumes:
+      - ./backend:/app
+
+  # =============================================================
+  # Celery Beat — 定时任务调度
+  # =============================================================
+  celery-beat:
+    build: ./backend
+    container_name: kk_nl2sql_celery_beat
+    command: celery -A app.tasks beat --loglevel=info --scheduler celery.beat:PersistentScheduler
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      - REDIS_HOST=redis
+    volumes:
+      - ./backend:/app
+
+  # =============================================================
   # Frontend — React (Vite build → Nginx serve)
   # =============================================================
   frontend:
     build: ./frontend
-    container_name: kk_gpt_frontend
+    container_name: kk_nl2sql_frontend
     restart: unless-stopped
 
   # =============================================================
@@ -191,7 +230,7 @@ services:
   # =============================================================
   nginx:
     image: nginx:alpine
-    container_name: kk_gpt_nginx
+    container_name: kk_nl2sql_nginx
     restart: unless-stopped
     ports:
       - "80:80"
@@ -205,4 +244,4 @@ services:
 
 networks:
   default:
-    name: kk_gpt_network
+    name: kk_nl2sql_network

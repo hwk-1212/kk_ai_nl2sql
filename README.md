@@ -1,4 +1,4 @@
-# KK GPT AIBot
+# KK NL2SQL AIBot
 
 全栈 AI 对话平台 — 集成 LLM 多模型路由、RAG 知识库、MCP 工具协议、长期记忆、多租户企业管理，开箱即用。
 
@@ -49,7 +49,7 @@
 ## 项目结构
 
 ```
-kk_gpt_aibot/
+kk_nl2sql_aibot/
 ├── backend/                   # FastAPI 后端
 │   ├── app/
 │   │   ├── api/v1/            # REST API 路由
@@ -98,7 +98,7 @@ kk_gpt_aibot/
 ### 1. 克隆 & 配置
 
 ```bash
-git clone <repo-url> && cd kk_gpt_aibot
+git clone <repo-url> && cd kk_nl2sql_aibot
 
 # 复制环境变量并编辑
 cp .env.example .env
@@ -126,7 +126,7 @@ docker compose ps
 首个用户需手动提升为超级管理员:
 
 ```bash
-docker exec -it kk_gpt_postgres psql -U kk_gpt -d kk_gpt \
+docker exec -it kk_nl2sql_postgres psql -U kk_nl2sql -d kk_nl2sql \
   -c "UPDATE users SET role='super_admin' WHERE email='your@email.com';"
 ```
 
@@ -158,7 +158,7 @@ docker compose -f docker-compose.prod.yml up -d
 
 # 定时备份 (每天凌晨 3 点)
 crontab -e
-0 3 * * * cd /path/to/kk_gpt_aibot && ./scripts/backup.sh ./backups
+0 3 * * * cd /path/to/kk_nl2sql_aibot && ./scripts/backup.sh ./backups
 
 # 恢复
 ./scripts/restore.sh ./backups/20260211_030000

@@ -1,4 +1,8 @@
-"""审计日志服务 — 记录关键操作"""
+"""审计模块: 原有操作审计 + 新增数据查询审计。
+
+原 audit.py 的功能保留在此文件，
+新增的 NL2SQL 数据审计在 data_auditor / middleware 中。
+"""
 import logging
 from fastapi import Request
 from sqlalchemy.ext.asyncio import AsyncSession

@@ -33,7 +33,7 @@ export default function LoginPage() {
           <div className="w-16 h-16 btn-gradient rounded-2xl flex items-center justify-center mb-5 shadow-xl shadow-primary/20">
             <Sparkles size={30} className="text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">KK GPT AIBot</h1>
+          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">KK NL2SQL AIBot</h1>
           <p className="text-sm text-slate-500 mt-1">登录到你的账户</p>
         </div>
 

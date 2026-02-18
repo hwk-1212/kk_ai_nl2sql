@@ -7,6 +7,7 @@ from app.api.v1 import health
 from app.api.v1 import auth, conversations, chat, models as models_api
 from app.api.v1 import knowledge, mcp as mcp_api, tools as tools_api
 from app.api.v1 import admin as admin_api
+from app.api.v1 import data as data_api, metrics as metrics_api, reports as reports_api, data_permissions as data_perm_api
 from app.core.llm.router import llm_router
 from app.core.llm.deepseek import DeepSeekProvider
 from app.core.llm.qwen import QwenProvider
@@ -207,6 +208,10 @@ app.include_router(knowledge.files_router, prefix="/api/v1")
 app.include_router(mcp_api.router, prefix="/api/v1")
 app.include_router(tools_api.router, prefix="/api/v1")
 app.include_router(admin_api.router, prefix="/api/v1")
+app.include_router(data_api.router, prefix="/api/v1", tags=["data"])
+app.include_router(metrics_api.router, prefix="/api/v1", tags=["metrics"])
+app.include_router(reports_api.router, prefix="/api/v1", tags=["reports"])
+app.include_router(data_perm_api.router, prefix="/api/v1", tags=["data-permissions"])
 
 
 @app.get("/")

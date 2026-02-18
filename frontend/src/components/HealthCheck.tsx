@@ -40,7 +40,7 @@ export default function HealthCheck() {
       <div className="w-full max-w-lg">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2">KK GPT AIBot</h1>
+          <h1 className="text-3xl font-bold text-white mb-2">KK NL2SQL AIBot</h1>
           <p className="text-slate-400">System Health Dashboard</p>
         </div>
 

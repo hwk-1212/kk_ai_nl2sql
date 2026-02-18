@@ -1,4 +1,4 @@
-# KK GPT AIBot — API 接口文档 v1
+# KK NL2SQL AIBot — API 接口文档 v1
 
 > Base URL: `http://localhost/api/v1`
 > OpenAPI Docs: `http://localhost/docs`
@@ -463,7 +463,7 @@ data: {"type":"content","data":"你好"}
 
 data: {"type":"content","data":"，我是"}
 
-data: {"type":"content","data":"KK GPT AIBot"}
+data: {"type":"content","data":"KK NL2SQL AIBot"}
 
 data: {"type":"done","usage":{"prompt_tokens":33,"completion_tokens":15,"total_tokens":48,"reasoning_tokens":null},"model":"deepseek-chat"}
 ```

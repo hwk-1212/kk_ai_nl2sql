@@ -14,7 +14,7 @@ headers = {
 query_text = "国庆节我要去云南玩了，有什么美食推荐吗？"
 
 data = {
-    "user_id": "kk_gpt_test_user_001",
+    "user_id": "kk_nl2sql_test_user_001",
     "conversation_id": "conv_test_0211_03",
     "query": query_text,
 }

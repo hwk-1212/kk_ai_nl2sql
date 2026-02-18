@@ -31,7 +31,7 @@ MAX_CONTEXT_MESSAGES = 20
 MAX_TOOL_ROUNDS = 5  # 最多工具调用轮次, 防止无限循环
 
 DEFAULT_SYSTEM_PROMPT = (
-    "你是 KK GPT AIBot，一个有帮助的 AI 助手。请用中文回答问题，回答要准确、简洁。"
+    "你是 KK NL2SQL AIBot，一个有帮助的 AI 助手。请用中文回答问题，回答要准确、简洁。"
     "\n\n当你不确定某些实时信息时，可以使用 web_search 工具搜索互联网。"
     "收到工具返回结果后，请基于结果给用户清晰的回答。"
 )

@@ -28,7 +28,7 @@ export default function MessageList() {
             你好，有什么可以帮你的？
           </h2>
           <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
-            我是 KK GPT，支持深度推理和快速对话。
+            我是 KK NL2SQL，支持深度推理和快速对话。
             <br />
             试试问我技术问题、代码调试或任何感兴趣的话题。
           </p>

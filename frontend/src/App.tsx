@@ -18,6 +18,10 @@ const UserManagementPage = lazy(() => import('@/pages/admin/UserManagementPage')
 const TenantManagementPage = lazy(() => import('@/pages/admin/TenantManagementPage'))
 const BillingPage = lazy(() => import('@/pages/admin/BillingPage'))
 const AuditLogsPage = lazy(() => import('@/pages/admin/AuditLogsPage'))
+const DataPage = lazy(() => import('@/pages/DataPage'))
+const MetricPage = lazy(() => import('@/pages/MetricPage'))
+const ReportPage = lazy(() => import('@/pages/ReportPage'))
+const DataPermissionPage = lazy(() => import('@/pages/DataPermissionPage'))
 
 // 页面加载骨架
 function PageLoader() {
@@ -59,6 +63,10 @@ export default function App() {
             <Route path="mcp" element={<MCPPage />} />
             <Route path="knowledge" element={<KnowledgePage />} />
             <Route path="tools" element={<ToolsPage />} />
+            <Route path="data" element={<DataPage />} />
+            <Route path="metrics" element={<MetricPage />} />
+            <Route path="reports" element={<ReportPage />} />
+            <Route path="data-permissions" element={<DataPermissionPage />} />
 
             {/* admin */}
             <Route path="admin" element={<AdminLayout />}>

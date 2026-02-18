@@ -11,7 +11,7 @@ headers = {
 }
 
 data = {
-    "user_id": "kk_gpt_test_user_001",
+    "user_id": "kk_nl2sql_test_user_001",
     "conversation_id": "conv_test_0211_01",
     "messages": [
         {"role": "user", "content": "我暑假定好去广州旅游，住宿的话有哪些连锁酒店可选？"},

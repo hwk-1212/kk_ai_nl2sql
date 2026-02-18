@@ -12,7 +12,7 @@ headers = {
 
 data = {
     "query": "我国庆想出去玩，帮我推荐个没去过的城市，以及没住过的酒店品牌",
-    "user_id": "kk_gpt_test_user_001",
+    "user_id": "kk_nl2sql_test_user_001",
     "conversation_id": "conv_test_0211_02",
 }
 
