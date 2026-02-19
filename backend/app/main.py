@@ -19,7 +19,13 @@ from app.core.rag.document_processor import DocumentProcessor
 from app.core.rag.retriever import RAGRetriever
 from app.core.rag.file2md import File2Markdown
 from app.core.tools.registry import ToolRegistry
-from app.core.tools.builtin import register_web_search
+from app.core.tools.builtin import (
+    register_web_search,
+    register_schema_tools,
+    register_execute_sql,
+    register_modify_user_data,
+    register_chart_recommend,
+)
 from app.core.data.manager import DataManager
 from app.core.data.isolated_executor import IsolatedSQLExecutor
 from app.db.minio_client import minio_client as global_minio_client
@@ -184,6 +190,10 @@ async def lifespan(app: FastAPI):
     # 初始化工具注册表 (内置工具 + MCP)
     tool_registry = ToolRegistry()
     register_web_search(tool_registry)
+    register_schema_tools(tool_registry)
+    register_execute_sql(tool_registry)
+    register_modify_user_data(tool_registry)
+    register_chart_recommend(tool_registry)
     app.state.tool_registry = tool_registry
     logger.info(f"✅ Tool Registry: {len(tool_registry.get_all_tools())} builtin tools registered")
 

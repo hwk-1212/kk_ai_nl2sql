@@ -1,53 +1,127 @@
-"""SQL 安全检查器 — 拦截危险 DDL / DML，限制查询复杂度。
+"""SQL 安全检查器 — 拦截危险 DDL / DML，自动 LIMIT，提取表名。
 
-使用 sqlparse 解析 SQL，拒绝非 SELECT 语句以及包含危险关键字的查询。
-
-TODO (Phase 3e): 完善检查规则
+功能:
+  - check(): 安全检查，区分只读/写模式
+  - enforce_limit(): 无 LIMIT 的 SELECT 自动追加
+  - extract_table_names(): 从 SQL 中提取引用的表名
 """
 from __future__ import annotations
+
+import re
 import logging
+from dataclasses import dataclass
+
+import sqlparse
+from sqlparse.sql import IdentifierList, Identifier, Where, Parenthesis
+from sqlparse.tokens import Keyword, DML
 
 logger = logging.getLogger(__name__)
-
-BLOCKED_KEYWORDS = frozenset([
-    "DROP", "DELETE", "TRUNCATE", "UPDATE", "INSERT", "ALTER",
-    "CREATE", "GRANT", "REVOKE", "EXECUTE", "EXEC", "CALL",
-    "COPY", "VACUUM", "ANALYZE",
-])
 
 
 class SqlSecurityError(Exception):
     pass
 
 
-class SqlChecker:
-    """SQL 安全检查器，仅允许只读 SELECT 语句。"""
+@dataclass
+class SecurityResult:
+    is_safe: bool
+    blocked_reason: str | None = None
 
-    def check(self, sql: str) -> None:
-        """检查 SQL 是否安全，不安全则抛出 SqlSecurityError。
-        TODO (Phase 3e): 使用 sqlparse 做 AST 级检查
-        """
+
+BLOCKED_PATTERNS = [
+    re.compile(r"\bDROP\s+DATABASE\b", re.I),
+    re.compile(r"\bALTER\s+SYSTEM\b", re.I),
+    re.compile(r"\bCREATE\s+ROLE\b", re.I),
+    re.compile(r"\bCREATE\s+USER\b", re.I),
+    re.compile(r"\bGRANT\s+", re.I),
+    re.compile(r"\bREVOKE\s+", re.I),
+    re.compile(r"\bpg_read_file\b", re.I),
+    re.compile(r"\bpg_write_file\b", re.I),
+    re.compile(r"\bCOPY\s+.*\s+TO\s+PROGRAM\b", re.I | re.S),
+    re.compile(r"\bLO_IMPORT\b", re.I),
+    re.compile(r"\bLO_EXPORT\b", re.I),
+    re.compile(r"\bSET\s+ROLE\b", re.I),
+    re.compile(r"\bSET\s+SESSION\b", re.I),
+    re.compile(r"\bCREATE\s+EXTENSION\b", re.I),
+    re.compile(r"\bDROP\s+SCHEMA\b", re.I),
+    re.compile(r"\bDROP\s+TABLE\b", re.I),
+    re.compile(r"\bALTER\s+TABLE\b", re.I),
+    re.compile(r"\bCREATE\s+TABLE\b", re.I),
+    re.compile(r"\bCREATE\s+INDEX\b", re.I),
+    re.compile(r"\bVACUUM\b", re.I),
+    re.compile(r";\s*(DROP|DELETE|TRUNCATE|ALTER|CREATE)\b", re.I),
+]
+
+WRITE_PATTERNS = [
+    re.compile(r"\bINSERT\s+INTO\b", re.I),
+    re.compile(r"\bUPDATE\s+\S+\s+SET\b", re.I),
+    re.compile(r"\bDELETE\s+FROM\b", re.I),
+    re.compile(r"\bTRUNCATE\b", re.I),
+]
+
+_LIMIT_RE = re.compile(r"\bLIMIT\s+\d+", re.I)
+_TABLE_FROM_RE = re.compile(r"\bFROM\s+([\"']?\w+[\"']?(?:\s*\.\s*[\"']?\w+[\"']?)?)", re.I)
+_TABLE_JOIN_RE = re.compile(r"\bJOIN\s+([\"']?\w+[\"']?(?:\s*\.\s*[\"']?\w+[\"']?)?)", re.I)
+_TABLE_INTO_RE = re.compile(r"\bINTO\s+([\"']?\w+[\"']?(?:\s*\.\s*[\"']?\w+[\"']?)?)", re.I)
+_TABLE_UPDATE_RE = re.compile(r"\bUPDATE\s+([\"']?\w+[\"']?(?:\s*\.\s*[\"']?\w+[\"']?)?)", re.I)
+
+
+class SQLSecurityChecker:
+    """SQL 安全检查器"""
+
+    def check(self, sql: str, allow_write: bool = False) -> SecurityResult:
+        """检查 SQL 安全性。"""
+        sql_stripped = sql.strip().rstrip(";").strip()
+        if not sql_stripped:
+            return SecurityResult(is_safe=False, blocked_reason="Empty SQL")
+
+        if ";" in sql_stripped:
+            return SecurityResult(is_safe=False, blocked_reason="Multiple statements not allowed")
+
+        for pattern in BLOCKED_PATTERNS:
+            if pattern.search(sql_stripped):
+                return SecurityResult(is_safe=False, blocked_reason=f"Blocked pattern: {pattern.pattern}")
+
+        is_write = any(p.search(sql_stripped) for p in WRITE_PATTERNS)
+        if is_write and not allow_write:
+            return SecurityResult(is_safe=False, blocked_reason="Write operations not allowed in read-only mode")
+
         try:
-            import sqlparse
-            parsed = sqlparse.parse(sql)
-        except ImportError:
-            parsed = None
-
-        upper = sql.upper()
-        for kw in BLOCKED_KEYWORDS:
-            if kw in upper:
-                raise SqlSecurityError(f"Blocked SQL keyword: {kw}")
-
-        if parsed:
+            parsed = sqlparse.parse(sql_stripped)
             for stmt in parsed:
                 stmt_type = stmt.get_type()
-                if stmt_type and stmt_type != "SELECT":
-                    raise SqlSecurityError(f"Only SELECT statements are allowed, got: {stmt_type}")
+                if stmt_type:
+                    if not allow_write and stmt_type != "SELECT":
+                        return SecurityResult(
+                            is_safe=False,
+                            blocked_reason=f"Only SELECT allowed, got: {stmt_type}"
+                        )
+                    if allow_write and stmt_type not in ("SELECT", "INSERT", "UPDATE", "DELETE"):
+                        return SecurityResult(
+                            is_safe=False,
+                            blocked_reason=f"Statement type not allowed: {stmt_type}"
+                        )
+        except Exception:
+            pass
 
-    def is_safe(self, sql: str) -> bool:
-        """返回 True 表示 SQL 通过安全检查。"""
-        try:
-            self.check(sql)
-            return True
-        except SqlSecurityError:
-            return False
+        return SecurityResult(is_safe=True)
+
+    def enforce_limit(self, sql: str, max_rows: int = 1000) -> str:
+        """如果 SELECT 没有 LIMIT，自动追加。"""
+        sql_stripped = sql.strip().rstrip(";").strip()
+        if _LIMIT_RE.search(sql_stripped):
+            return sql_stripped
+        upper = sql_stripped.upper()
+        if upper.startswith("SELECT") or upper.startswith("WITH"):
+            return f"{sql_stripped} LIMIT {max_rows}"
+        return sql_stripped
+
+    def extract_table_names(self, sql: str) -> list[str]:
+        """从 SQL 中提取引用的表名 (含 schema.table 格式)。"""
+        tables = set()
+        for pattern in [_TABLE_FROM_RE, _TABLE_JOIN_RE, _TABLE_INTO_RE, _TABLE_UPDATE_RE]:
+            for match in pattern.finditer(sql):
+                raw = match.group(1).strip().strip("\"'")
+                if raw.upper() not in ("SELECT", "WHERE", "SET", "VALUES"):
+                    tables.add(raw)
+        return list(tables)

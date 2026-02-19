@@ -28,13 +28,27 @@ router = APIRouter(tags=["chat"])
 logger = logging.getLogger(__name__)
 
 MAX_CONTEXT_MESSAGES = 20
-MAX_TOOL_ROUNDS = 5  # 最多工具调用轮次, 防止无限循环
+MAX_TOOL_ROUNDS = 10  # 最多工具调用轮次, 防止无限循环
 
-DEFAULT_SYSTEM_PROMPT = (
-    "你是 KK NL2SQL AIBot，一个有帮助的 AI 助手。请用中文回答问题，回答要准确、简洁。"
-    "\n\n当你不确定某些实时信息时，可以使用 web_search 工具搜索互联网。"
-    "收到工具返回结果后，请基于结果给用户清晰的回答。"
-)
+DEFAULT_SYSTEM_PROMPT = """你是 KK 智能数据分析助手。你可以:
+1. 查询用户上传的数据表 (使用 inspect_tables / inspect_table_schema)
+2. 执行 SQL 查询并返回结果 (使用 execute_sql)
+3. 推荐合适的可视化图表 (使用 recommend_chart)
+4. 对用户自建表进行数据修改 (使用 modify_user_data)
+5. 搜索互联网获取实时信息 (使用 web_search)
+
+工作流程:
+- 先理解用户意图
+- 如果用户询问数据相关问题，先用 inspect_tables 查看可用表
+- 再用 inspect_table_schema 了解表结构
+- 生成并执行 SQL (使用 execute_sql)
+- 根据结果推荐可视化 (使用 recommend_chart)
+- 用清晰的中文向用户展示结果
+
+注意事项:
+- SQL 中使用 pg_table_name (如 ud_xxxx_tablename)，不要使用 display_name
+- SELECT 查询会自动限制最多 1000 行
+- 写操作需要指定 table_name 并且表必须是用户自己上传的"""
 
 
 def _get_memory_manager(request: Request) -> MemoryManager | None:
@@ -186,7 +200,8 @@ async def _load_user_tools(db: AsyncSession, user: User, registry: ToolRegistry)
 
 
 async def _execute_tool(
-    tool_name: str, arguments: dict, registry: ToolRegistry, db: AsyncSession, user: User
+    tool_name: str, arguments: dict, registry: ToolRegistry,
+    db: AsyncSession, user: User, raw_request: Request | None = None,
 ) -> tuple[bool, str]:
     """
     执行工具: 内置 / MCP / 自定义
@@ -197,7 +212,8 @@ async def _execute_tool(
         return False, f"Unknown tool: {tool_name}"
 
     if source == "builtin":
-        result = await registry.execute_builtin(tool_name, arguments)
+        context = {"user": user, "db": db, "request": raw_request}
+        result = await registry.execute_builtin(tool_name, arguments, context=context)
         return result.success, result.content if result.success else (result.error or "Unknown error")
 
     # MCP 工具: mcp:{server_id}
@@ -459,7 +475,7 @@ async def chat_stream(
 
                         # 执行工具
                         success, result_text = await _execute_tool(
-                            tc_name, tc_args, tool_registry, db, current_user
+                            tc_name, tc_args, tool_registry, db, current_user, raw_request
                         )
 
                         # SSE: tool_result

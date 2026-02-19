@@ -25,6 +25,8 @@ class ToolResult(BaseModel):
 
 # 内置工具函数签名: async (arguments: dict) -> str
 BuiltinToolFn = Callable[[dict], Coroutine[Any, Any, str]]
+# 上下文感知工具签名: async (arguments: dict, context: dict) -> str
+ContextToolFn = Callable[[dict, dict], Coroutine[Any, Any, str]]
 
 
 class ToolRegistry:
@@ -32,6 +34,7 @@ class ToolRegistry:
 
     def __init__(self):
         self._builtin_tools: dict[str, tuple[ToolDef, BuiltinToolFn]] = {}
+        self._context_tools: dict[str, tuple[ToolDef, ContextToolFn]] = {}
         self._mcp_tools: dict[str, ToolDef] = {}  # name → ToolDef
         self._custom_tools: dict[str, ToolDef] = {}  # name → ToolDef
 
@@ -41,6 +44,12 @@ class ToolRegistry:
         tool_def = ToolDef(name=name, description=description, parameters=parameters, source="builtin")
         self._builtin_tools[name] = (tool_def, fn)
         logger.info(f"Registered builtin tool: {name}")
+
+    def register_context_tool(self, name: str, description: str, parameters: dict, fn: ContextToolFn):
+        """注册需要 user/db 上下文的内置工具。"""
+        tool_def = ToolDef(name=name, description=description, parameters=parameters, source="builtin")
+        self._context_tools[name] = (tool_def, fn)
+        logger.info(f"Registered context-aware builtin tool: {name}")
 
     # ======================== MCP 工具管理 ========================
 
@@ -83,6 +92,7 @@ class ToolRegistry:
     def get_all_tools(self) -> list[ToolDef]:
         """返回所有可用工具定义"""
         tools = [td for td, _ in self._builtin_tools.values()]
+        tools.extend(td for td, _ in self._context_tools.values())
         tools.extend(self._mcp_tools.values())
         tools.extend(self._custom_tools.values())
         return tools
@@ -107,7 +117,7 @@ class ToolRegistry:
 
     def get_tool_source(self, tool_name: str) -> str | None:
         """获取工具来源 (builtin / mcp:xxx / custom:xxx)"""
-        if tool_name in self._builtin_tools:
+        if tool_name in self._builtin_tools or tool_name in self._context_tools:
             return "builtin"
         if tool_name in self._mcp_tools:
             return self._mcp_tools[tool_name].source
@@ -115,13 +125,23 @@ class ToolRegistry:
             return self._custom_tools[tool_name].source
         return None
 
-    async def execute_builtin(self, name: str, arguments: dict) -> ToolResult:
-        """执行内置工具"""
-        if name not in self._builtin_tools:
-            return ToolResult(name=name, success=False, content="", error=f"Unknown builtin tool: {name}")
-        _, fn = self._builtin_tools[name]
-        try:
-            result = await fn(arguments)
-            return ToolResult(name=name, success=True, content=result)
-        except Exception as e:
-            return ToolResult(name=name, success=False, content="", error=str(e))
+    async def execute_builtin(self, name: str, arguments: dict, context: dict | None = None) -> ToolResult:
+        """执行内置工具。上下文感知工具会收到 context dict (含 user, db, request)。"""
+        if name in self._context_tools:
+            _, fn = self._context_tools[name]
+            try:
+                result = await fn(arguments, context or {})
+                return ToolResult(name=name, success=True, content=result)
+            except Exception as e:
+                logger.exception("Context tool %s failed", name)
+                return ToolResult(name=name, success=False, content="", error=str(e))
+
+        if name in self._builtin_tools:
+            _, fn = self._builtin_tools[name]
+            try:
+                result = await fn(arguments)
+                return ToolResult(name=name, success=True, content=result)
+            except Exception as e:
+                return ToolResult(name=name, success=False, content="", error=str(e))
+
+        return ToolResult(name=name, success=False, content="", error=f"Unknown builtin tool: {name}")

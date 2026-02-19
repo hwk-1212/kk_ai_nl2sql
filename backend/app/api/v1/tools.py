@@ -88,7 +88,8 @@ async def _get_disabled_builtins(user_id: str) -> set[str]:
 async def get_user_enabled_builtins(user_id: str, registry) -> list[str]:
     """获取用户启用的内置工具名称列表 (chat.py 用)"""
     disabled = await _get_disabled_builtins(user_id)
-    return [name for name in registry._builtin_tools if name not in disabled]
+    all_builtin = list(registry._builtin_tools.keys()) + list(registry._context_tools.keys())
+    return [name for name in all_builtin if name not in disabled]
 
 
 # ======================== 内置工具 ========================
@@ -106,6 +107,10 @@ async def list_builtin_tools(
     disabled = await _get_disabled_builtins(str(current_user.id))
     result = []
     for td, _ in registry._builtin_tools.values():
+        item = _serialize_builtin_tool(td.name, td.description, td.parameters)
+        item["enabled"] = td.name not in disabled
+        result.append(item)
+    for td, _ in registry._context_tools.values():
         item = _serialize_builtin_tool(td.name, td.description, td.parameters)
         item["enabled"] = td.name not in disabled
         result.append(item)

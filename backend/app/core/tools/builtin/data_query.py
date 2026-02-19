@@ -1,35 +1,115 @@
-"""Agent 工具: SQL 查询执行 — LLM 生成的 SQL 经安全检查后在 user_data schema 执行。
+"""Agent 工具: execute_sql — 在用户数据表上执行只读 SQL 查询。
 
-TODO (Phase 3b): 实现工具注册和执行逻辑
+执行流程:
+  1. SQLSecurityChecker.check(sql, allow_write=False)
+  2. SQLSecurityChecker.extract_table_names(sql)
+  3. SQLSecurityChecker.enforce_limit(sql, 1000)
+  4. IsolatedSQLExecutor.execute_read(tenant_schema, sql)
+  5. 格式化结果返回
 """
 from __future__ import annotations
+
+import json
 import logging
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.core.tools.registry import ToolRegistry
+from app.core.security.sql_checker import SQLSecurityChecker
+from app.models.data_table import DataTable
+from app.models.user import User
 
 logger = logging.getLogger(__name__)
 
-DATA_QUERY_PARAMS = {
+EXECUTE_SQL_PARAMS = {
     "type": "object",
     "properties": {
-        "sql": {"type": "string", "description": "要执行的 SQL 查询语句 (SELECT only)"},
+        "sql": {
+            "type": "string",
+            "description": "要执行的 SQL SELECT 查询语句。表名使用 inspect_tables 返回的 pg_table_name。",
+        },
     },
     "required": ["sql"],
 }
 
-
-async def _data_query(arguments: dict) -> str:
-    """执行 SQL 查询并返回结果。
-    TODO (Phase 3b): 安全检查 → IsolatedExecutor 执行 → 格式化结果
-    """
-    raise NotImplementedError("Phase 3b")
+_checker = SQLSecurityChecker()
 
 
-def register_data_query(registry: ToolRegistry):
-    """注册 data_query 工具。"""
-    registry.register_builtin(
-        name="data_query",
-        description="在用户数据表上执行 SQL 查询。仅支持 SELECT 语句，自动限制结果行数。",
-        parameters=DATA_QUERY_PARAMS,
-        fn=_data_query,
+async def _execute_sql(arguments: dict, context: dict) -> str:
+    """执行只读 SQL 查询并返回结果。"""
+    user: User = context["user"]
+    db: AsyncSession = context["db"]
+    request = context.get("request")
+
+    sql = arguments.get("sql", "").strip()
+    if not sql:
+        return "错误: 请提供 SQL 查询语句。"
+
+    check_result = _checker.check(sql, allow_write=False)
+    if not check_result.is_safe:
+        return f"SQL 安全检查未通过: {check_result.blocked_reason}"
+
+    sql = _checker.enforce_limit(sql)
+
+    referenced_tables = _checker.extract_table_names(sql)
+
+    q = select(DataTable).where(DataTable.user_id == user.id)
+    result = await db.execute(q)
+    user_tables = result.scalars().all()
+    user_pg_names = {t.pg_table_name.lower() for t in user_tables}
+
+    for ref in referenced_tables:
+        ref_clean = ref.lower().strip('"')
+        parts = ref_clean.split(".")
+        table_part = parts[-1]
+        if table_part not in user_pg_names:
+            return f"访问被拒绝: 表 '{ref}' 不属于您的数据表。请使用 inspect_tables 查看可用表。"
+
+    if not request:
+        return "内部错误: 无法获取执行器。"
+
+    executor = getattr(request.app.state, "isolated_executor", None)
+    if not executor:
+        return "内部错误: SQL 执行器未初始化。"
+
+    schema = executor.get_user_schema(user.tenant_id)
+
+    try:
+        query_result = await executor.execute_read(
+            tenant_schema=schema,
+            sql=sql,
+        )
+    except Exception as e:
+        error_msg = str(e)
+        if "statement timeout" in error_msg.lower():
+            return "查询超时: SQL 执行时间超过限制，请优化查询或减少数据量。"
+        return f"SQL 执行错误: {error_msg[:500]}"
+
+    if not query_result.rows:
+        return f"查询成功，但没有返回结果。\n\nSQL: `{sql}`"
+
+    result_data = {
+        "columns": query_result.columns,
+        "rows": query_result.rows[:50],
+        "total_rows": query_result.row_count,
+        "truncated": query_result.truncated,
+        "execution_ms": query_result.execution_ms,
+    }
+
+    lines = [f"查询成功 ({query_result.row_count} 行, {query_result.execution_ms}ms)"]
+    if query_result.truncated:
+        lines.append(f"⚠️ 结果已截断 (最多显示 1000 行)")
+    lines.append("")
+    lines.append(json.dumps(result_data, ensure_ascii=False, default=str))
+
+    return "\n".join(lines)
+
+
+def register_execute_sql(registry: ToolRegistry):
+    """注册 execute_sql 工具。"""
+    registry.register_context_tool(
+        name="execute_sql",
+        description="在用户数据表上执行只读 SQL 查询 (SELECT)。自动进行安全检查和结果行数限制。表名使用 inspect_tables 返回的 pg_table_name。",
+        parameters=EXECUTE_SQL_PARAMS,
+        fn=_execute_sql,
     )
-    logger.info("Registered builtin tool: data_query")
