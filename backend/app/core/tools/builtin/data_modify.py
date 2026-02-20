@@ -69,6 +69,12 @@ async def _modify_user_data(arguments: dict, context: dict) -> str:
     if not target.is_writable:
         return f"表 '{table_name}' 为只读，不允许写操作。"
 
+    # 权限检查 (Phase 3E)
+    from app.core.security.data_access import DataAccessControl
+    dac = DataAccessControl()
+    if not await dac.check_table_access(user, target, "write", db):
+        return f"权限不足: 无法对表 {target.display_name} 执行写操作"
+
     if not request:
         return "内部错误: 无法获取执行器。"
 

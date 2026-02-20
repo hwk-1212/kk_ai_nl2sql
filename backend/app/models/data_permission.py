@@ -2,6 +2,7 @@
 import uuid
 from datetime import datetime, timezone
 from sqlalchemy import String, Boolean, DateTime, ForeignKey, Text, text
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import UUID
 from app.models.base import Base
@@ -19,6 +20,7 @@ class DataRole(Base):
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    is_default: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
         server_default=text("now()")
@@ -35,10 +37,13 @@ class DataRoleAssignment(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    role_id: Mapped[uuid.UUID] = mapped_column(
+    data_role_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("data_roles.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    assigned_at: Mapped[datetime] = mapped_column(
+    assigned_by: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
         server_default=text("now()")
     )
@@ -51,14 +56,17 @@ class TablePermission(Base):
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4,
         server_default=text("uuid_generate_v4()")
     )
-    role_id: Mapped[uuid.UUID] = mapped_column(
+    data_role_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("data_roles.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    table_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("data_tables.id", ondelete="CASCADE"), nullable=False
+    data_table_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("data_tables.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    can_read: Mapped[bool] = mapped_column(Boolean, default=True)
-    can_write: Mapped[bool] = mapped_column(Boolean, default=False)
+    permission: Mapped[str] = mapped_column(String(20), nullable=False, default="read")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
+        server_default=text("now()")
+    )
 
 
 class ColumnPermission(Base):
@@ -68,12 +76,19 @@ class ColumnPermission(Base):
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4,
         server_default=text("uuid_generate_v4()")
     )
-    table_permission_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("table_permissions.id", ondelete="CASCADE"), nullable=False, index=True
+    data_role_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("data_roles.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    data_table_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("data_tables.id", ondelete="CASCADE"), nullable=False, index=True
     )
     column_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    visible: Mapped[bool] = mapped_column(Boolean, default=True)
-    mask_type: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    visibility: Mapped[str] = mapped_column(String(20), nullable=False, default="visible")
+    masking_rule: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
+        server_default=text("now()")
+    )
 
 
 class RowFilter(Base):
@@ -83,8 +98,15 @@ class RowFilter(Base):
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4,
         server_default=text("uuid_generate_v4()")
     )
-    table_permission_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("table_permissions.id", ondelete="CASCADE"), nullable=False, index=True
+    data_role_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("data_roles.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    data_table_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("data_tables.id", ondelete="CASCADE"), nullable=False, index=True
     )
     filter_expression: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
+        server_default=text("now()")
+    )

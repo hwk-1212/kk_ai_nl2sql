@@ -21,6 +21,7 @@ class Dimension(Base):
         UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="SET NULL"), nullable=True
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
+    english_name: Mapped[str] = mapped_column(String(255), nullable=False)
     display_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     source_column: Mapped[str] = mapped_column(String(255), nullable=False)

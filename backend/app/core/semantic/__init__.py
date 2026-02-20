@@ -1,1 +1,4 @@
-"""语义层模块: 业务指标、维度、业务术语的语义注解与检索。"""
+"""语义层模块: 指标向量化 + 语义检索"""
+from app.core.semantic.layer import SemanticLayer, MetricSearchResult
+
+__all__ = ["SemanticLayer", "MetricSearchResult"]

@@ -31,6 +31,15 @@ from app.core.data.isolated_executor import IsolatedSQLExecutor
 from app.core.context.token_counter import TokenCounter
 from app.core.context.summarizer import ContextSummarizer
 from app.core.context.manager import ContextManager
+from app.core.semantic.layer import SemanticLayer
+from app.core.tools.builtin import (
+    register_web_search,
+    register_schema_tools,
+    register_execute_sql,
+    register_modify_user_data,
+    register_chart_recommend,
+    register_lookup_metrics,
+)
 from app.db.minio_client import minio_client as global_minio_client
 
 from app.core.logging import setup_logging
@@ -75,6 +84,46 @@ async def lifespan(app: FastAPI):
             "ALTER TABLE data_tables ADD COLUMN IF NOT EXISTS is_writable BOOLEAN NOT NULL DEFAULT TRUE",
             "ALTER TABLE data_tables ADD COLUMN IF NOT EXISTS visibility VARCHAR(20) NOT NULL DEFAULT 'private'",
             "ALTER TABLE data_tables ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()",
+        ]:
+            try:
+                await conn.execute(sa_text(stmt))
+            except Exception:
+                pass
+
+        # Phase 3D: 语义层模型新增字段
+        for stmt in [
+            "ALTER TABLE metrics ADD COLUMN IF NOT EXISTS english_name VARCHAR(255)",
+            "ALTER TABLE metrics ADD COLUMN IF NOT EXISTS source_table VARCHAR(255)",
+            "ALTER TABLE metrics ADD COLUMN IF NOT EXISTS dimensions JSONB",
+            "ALTER TABLE metrics ADD COLUMN IF NOT EXISTS filters JSONB",
+            "ALTER TABLE metrics ADD COLUMN IF NOT EXISTS time_granularity JSONB",
+            "ALTER TABLE metrics ADD COLUMN IF NOT EXISTS category VARCHAR(100)",
+            "ALTER TABLE metrics ADD COLUMN IF NOT EXISTS version VARCHAR(20) NOT NULL DEFAULT '1.0'",
+            "ALTER TABLE dimensions ADD COLUMN IF NOT EXISTS english_name VARCHAR(255)",
+            "ALTER TABLE business_terms ADD COLUMN IF NOT EXISTS term_type VARCHAR(20) NOT NULL DEFAULT 'metric'",
+        ]:
+            try:
+                await conn.execute(sa_text(stmt))
+            except Exception:
+                pass
+
+        # Phase 3E: 权限模型新增/修改字段
+        for stmt in [
+            "ALTER TABLE data_roles ADD COLUMN IF NOT EXISTS is_default BOOLEAN NOT NULL DEFAULT FALSE",
+            "ALTER TABLE data_role_assignments ADD COLUMN IF NOT EXISTS assigned_by UUID REFERENCES users(id) ON DELETE SET NULL",
+            "ALTER TABLE data_role_assignments RENAME COLUMN role_id TO data_role_id",
+            "ALTER TABLE table_permissions ADD COLUMN IF NOT EXISTS permission VARCHAR(20) NOT NULL DEFAULT 'read'",
+            "ALTER TABLE table_permissions ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT now()",
+            "ALTER TABLE table_permissions RENAME COLUMN role_id TO data_role_id",
+            "ALTER TABLE table_permissions RENAME COLUMN table_id TO data_table_id",
+            "ALTER TABLE column_permissions ADD COLUMN IF NOT EXISTS data_role_id UUID REFERENCES data_roles(id) ON DELETE CASCADE",
+            "ALTER TABLE column_permissions ADD COLUMN IF NOT EXISTS data_table_id UUID REFERENCES data_tables(id) ON DELETE CASCADE",
+            "ALTER TABLE column_permissions ADD COLUMN IF NOT EXISTS visibility VARCHAR(20) NOT NULL DEFAULT 'visible'",
+            "ALTER TABLE column_permissions ADD COLUMN IF NOT EXISTS masking_rule VARCHAR(50)",
+            "ALTER TABLE column_permissions ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT now()",
+            "ALTER TABLE row_filters ADD COLUMN IF NOT EXISTS data_role_id UUID REFERENCES data_roles(id) ON DELETE CASCADE",
+            "ALTER TABLE row_filters ADD COLUMN IF NOT EXISTS data_table_id UUID REFERENCES data_tables(id) ON DELETE CASCADE",
+            "ALTER TABLE row_filters ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT now()",
         ]:
             try:
                 await conn.execute(sa_text(stmt))
@@ -197,8 +246,21 @@ async def lifespan(app: FastAPI):
     register_execute_sql(tool_registry)
     register_modify_user_data(tool_registry)
     register_chart_recommend(tool_registry)
+    register_lookup_metrics(tool_registry)
     app.state.tool_registry = tool_registry
     logger.info(f"✅ Tool Registry: {len(tool_registry.get_all_tools())} builtin tools registered")
+
+    # 初始化语义层 (Phase 3D)
+    if settings.rag_enabled and settings.qwen_api_key:
+        from app.core.semantic.layer import COLLECTION_NAME, EMBEDDING_DIM
+        semantic_layer = SemanticLayer(embedder=embedder, vector_store=vector_store)
+        app.state.semantic_layer = semantic_layer
+        # 创建 kk_metrics Milvus collection
+        vector_store.create_collection(COLLECTION_NAME, dim=EMBEDDING_DIM)
+        logger.info(f"✅ SemanticLayer initialized (collection={COLLECTION_NAME})")
+    else:
+        app.state.semantic_layer = None
+        logger.info("⚠️ SemanticLayer: disabled (RAG not enabled)")
 
     # 初始化数据管理模块
     app.state.data_manager = DataManager(engine=engine, minio_client=global_minio_client)

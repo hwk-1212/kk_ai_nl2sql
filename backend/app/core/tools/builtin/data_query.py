@@ -58,12 +58,28 @@ async def _execute_sql(arguments: dict, context: dict) -> str:
     user_tables = result.scalars().all()
     user_pg_names = {t.pg_table_name.lower() for t in user_tables}
 
+    # 查找引用的表
+    matched_tables = []
     for ref in referenced_tables:
         ref_clean = ref.lower().strip('"')
         parts = ref_clean.split(".")
         table_part = parts[-1]
-        if table_part not in user_pg_names:
+        for t in user_tables:
+            if t.pg_table_name.lower() == table_part:
+                matched_tables.append(t)
+                break
+        else:
             return f"访问被拒绝: 表 '{ref}' 不属于您的数据表。请使用 inspect_tables 查看可用表。"
+
+    # 权限检查 (Phase 3E)
+    from app.core.security.data_access import DataAccessControl
+    dac = DataAccessControl()
+    for table in matched_tables:
+        if not await dac.check_table_access(user, table, "read", db):
+            return f"权限不足: 无法访问表 {table.display_name}"
+
+    # 行级过滤注入
+    sql = await dac.rewrite_sql_with_filters(user, sql, matched_tables, db)
 
     if not request:
         return "内部错误: 无法获取执行器。"
@@ -95,6 +111,10 @@ async def _execute_sql(arguments: dict, context: dict) -> str:
         "truncated": query_result.truncated,
         "execution_ms": query_result.execution_ms,
     }
+
+    # 列级脱敏 (Phase 3E)
+    for table in matched_tables:
+        result_data = await dac.apply_column_masking(result_data, user, table, db)
 
     lines = [f"查询成功 ({query_result.row_count} 行, {query_result.execution_ms}ms)"]
     if query_result.truncated:

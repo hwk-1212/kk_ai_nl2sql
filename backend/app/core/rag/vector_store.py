@@ -81,6 +81,21 @@ class VectorStore:
         finally:
             self._disconnect()
 
+    def delete(self, collection_name: str, ids: list[str]):
+        """按 ID 列表删除向量"""
+        self._connect()
+        try:
+            if not utility.has_collection(collection_name):
+                return
+            col = Collection(collection_name)
+            col.load()
+            expr = f'id in {ids}'
+            col.delete(expr)
+            col.flush()
+            logger.info(f"Deleted {len(ids)} vectors from {collection_name}")
+        finally:
+            self._disconnect()
+
     def delete_by_doc_id(self, collection_name: str, doc_id: str):
         """按文档 ID 删除所有 chunk 向量"""
         self._connect()

@@ -22,6 +22,7 @@ class BusinessTerm(Base):
     )
     term: Mapped[str] = mapped_column(String(255), nullable=False)
     canonical_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    term_type: Mapped[str] = mapped_column(String(20), nullable=False, default="metric")
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     sql_expression: Mapped[str | None] = mapped_column(Text, nullable=True)
     synonyms: Mapped[str | None] = mapped_column(Text, nullable=True)
