@@ -28,6 +28,9 @@ from app.core.tools.builtin import (
 )
 from app.core.data.manager import DataManager
 from app.core.data.isolated_executor import IsolatedSQLExecutor
+from app.core.context.token_counter import TokenCounter
+from app.core.context.summarizer import ContextSummarizer
+from app.core.context.manager import ContextManager
 from app.db.minio_client import minio_client as global_minio_client
 
 from app.core.logging import setup_logging
@@ -201,6 +204,13 @@ async def lifespan(app: FastAPI):
     app.state.data_manager = DataManager(engine=engine, minio_client=global_minio_client)
     app.state.isolated_executor = IsolatedSQLExecutor(engine=engine)
     logger.info("✅ DataManager & IsolatedSQLExecutor initialized")
+
+    # 初始化上下文管理器
+    token_counter = TokenCounter()
+    summarizer = ContextSummarizer()
+    context_manager = ContextManager(token_counter, summarizer)
+    app.state.context_manager = context_manager
+    logger.info("✅ ContextManager initialized (compress_threshold=60%, keep_recent=6 rounds)")
 
     yield
 

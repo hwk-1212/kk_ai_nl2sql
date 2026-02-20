@@ -16,6 +16,7 @@ from app.core.memory.memos_client import MemorySearchResult
 from app.core.rag.retriever import RAGRetriever
 from app.core.tools.registry import ToolRegistry
 from app.core.tools.mcp_client import MCPClient
+from app.core.context.manager import ContextManager
 from app.models.user import User
 from app.models.conversation import Conversation
 from app.models.message import Message
@@ -61,6 +62,10 @@ def _get_rag_retriever(request: Request) -> RAGRetriever | None:
 
 def _get_tool_registry(request: Request) -> ToolRegistry | None:
     return getattr(request.app.state, "tool_registry", None)
+
+
+def _get_context_manager(request: Request) -> ContextManager | None:
+    return getattr(request.app.state, "context_manager", None)
 
 
 async def _get_or_create_conversation(
@@ -356,9 +361,35 @@ async def chat_stream(
     db.add(user_msg)
     await db.commit()
 
-    # 6. 构建 LLM messages
+    # 6. 构建 LLM messages (通过 ContextManager 自动管理上下文窗口)
     memory_prompt = MemoryManager.build_memory_prompt(memory_result) if memory_manager else ""
-    llm_messages = _build_messages(conv, user_content, memory_prompt, rag_prompt)
+    system_prompt = DEFAULT_SYSTEM_PROMPT
+    if memory_prompt:
+        system_prompt += f"\n\n{memory_prompt}"
+    if rag_prompt:
+        system_prompt += f"\n\n{rag_prompt}"
+
+    history = [{"role": msg.role, "content": msg.content} for msg in list(conv.messages)[-MAX_CONTEXT_MESSAGES:]]
+
+    context_manager = _get_context_manager(raw_request)
+    if context_manager:
+        ctx_result = await context_manager.build_messages(
+            system_prompt=system_prompt,
+            history_messages=history,
+            user_input=user_content,
+            model=request.model,
+            llm_router=llm_router,
+            tool_definitions=openai_tools,
+        )
+        llm_messages = ctx_result.messages
+        context_was_compressed = ctx_result.was_compressed
+        context_original_tokens = ctx_result.original_tokens
+        context_compressed_tokens = ctx_result.compressed_tokens
+    else:
+        llm_messages = _build_messages(conv, user_content, memory_prompt, rag_prompt)
+        context_was_compressed = False
+        context_original_tokens = 0
+        context_compressed_tokens = 0
 
     # 7. 检测模型可用
     try:
@@ -404,6 +435,16 @@ async def chat_stream(
                     "score": s.get("score", 0),
                     "source": s.get("source", ""),
                 })
+
+        # context compressed notification
+        if context_was_compressed:
+            yield _sse({
+                "type": "context_compressed",
+                "data": {
+                    "original_tokens": context_original_tokens,
+                    "compressed_tokens": context_compressed_tokens,
+                },
+            })
 
         # =============== 多轮工具调用循环 ===============
         messages = llm_messages[:]
