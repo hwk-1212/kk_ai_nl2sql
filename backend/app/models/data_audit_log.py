@@ -32,7 +32,9 @@ class DataAuditLog(Base):
     sql_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     affected_rows: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     execution_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    result_row_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    result_row_count: Mapped[int] = mapped_column(
+        "row_count", Integer, nullable=False, default=0
+    )  # DB column "row_count" (legacy); Python attr "result_row_count"
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="success")
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     before_snapshot: Mapped[dict | None] = mapped_column(JSONB, nullable=True)

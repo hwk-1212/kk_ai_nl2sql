@@ -3,6 +3,22 @@ import { Plus, Play, Trash2, Clock } from 'lucide-react'
 import type { ReportSchedule } from '@/types'
 import Modal from '@/components/common/Modal'
 import { useReportStore } from '@/stores/reportStore'
+import { reportApi } from '@/services/api'
+
+function mapSchedule(s: Record<string, unknown>, templateName?: string): ReportSchedule {
+  return {
+    id: String(s.id),
+    userId: String(s.user_id),
+    templateId: s.template_id != null ? String(s.template_id) : '',
+    templateName: templateName ?? (s.template_id != null ? String(s.template_id) : undefined),
+    cronExpression: String(s.cron_expression),
+    cronDescription: String(s.cron_expression),
+    isActive: Boolean(s.is_active),
+    lastRunAt: s.last_run_at != null ? new Date(s.last_run_at as string).toISOString() : undefined,
+    nextRunAt: s.next_run_at != null ? new Date(s.next_run_at as string).toISOString() : undefined,
+    createdAt: s.created_at != null ? new Date(s.created_at as string).toISOString() : '',
+  }
+}
 
 const CRON_PRESETS = [
   { label: '每天 9:00', cron: '0 9 * * *', desc: '每天 9:00' },
@@ -22,38 +38,64 @@ export default function ScheduleManager() {
   const [selectedPreset, setSelectedPreset] = useState(0)
   const [customCron, setCustomCron] = useState('')
   const [templateId, setTemplateId] = useState('')
+  const [scheduleName, setScheduleName] = useState('')
+  const [saving, setSaving] = useState(false)
 
   const openNew = () => {
     setSelectedPreset(0)
     setCustomCron('')
     setTemplateId(templates[0]?.id ?? '')
+    setScheduleName('')
     setModalOpen(true)
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const preset = CRON_PRESETS[selectedPreset]
     const cron = preset.cron || customCron.trim()
     if (!cron || !templateId) return
     const tpl = templates.find((t) => t.id === templateId)
-    addSchedule({
-      id: `sch-${Date.now()}`,
-      userId: 'u1',
-      templateId,
-      templateName: tpl?.name,
-      cronExpression: cron,
-      cronDescription: preset.desc || cron,
-      isActive: true,
-      createdAt: new Date().toISOString(),
-    })
-    setModalOpen(false)
+    setSaving(true)
+    try {
+      const created = await reportApi.createSchedule({
+        name: scheduleName.trim() || (tpl?.name ?? '定时报告'),
+        cron_expression: cron,
+        template_id: templateId,
+      })
+      const mapped = mapSchedule(created, tpl?.name)
+      addSchedule(mapped)
+      setModalOpen(false)
+    } catch (e) {
+      console.error('Create schedule failed', e)
+    }
+    setSaving(false)
   }
 
-  const toggleActive = (s: ReportSchedule) => {
-    updateSchedule(s.id, { isActive: !s.isActive })
+  const toggleActive = async (s: ReportSchedule) => {
+    try {
+      const res = await reportApi.toggleSchedule(s.id)
+      const updated = mapSchedule(res)
+      updateSchedule(s.id, { isActive: updated.isActive, lastRunAt: updated.lastRunAt, nextRunAt: updated.nextRunAt })
+    } catch (e) {
+      console.error('Toggle schedule failed', e)
+    }
   }
 
-  const simulateRun = (s: ReportSchedule) => {
-    updateSchedule(s.id, { lastRunAt: new Date().toISOString() })
+  const simulateRun = async (s: ReportSchedule) => {
+    try {
+      await reportApi.runSchedule(s.id)
+      updateSchedule(s.id, { lastRunAt: new Date().toISOString() })
+    } catch (e) {
+      console.error('Run schedule failed', e)
+    }
+  }
+
+  const handleDelete = async (s: ReportSchedule) => {
+    if (!confirm('确定删除该定时任务？')) return
+    try {
+      await deleteSchedule(s.id)
+    } catch (e) {
+      console.error('Delete schedule failed', e)
+    }
   }
 
   const inputCls =
@@ -109,7 +151,7 @@ export default function ScheduleManager() {
                   <button onClick={() => simulateRun(s)} className="p-1.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 text-slate-400 hover:text-blue-500 transition-colors" title="立即运行">
                     <Play size={14} />
                   </button>
-                  <button onClick={() => deleteSchedule(s.id)} className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-slate-400 hover:text-red-500 ml-1 transition-colors">
+                  <button onClick={() => handleDelete(s)} className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-slate-400 hover:text-red-500 ml-1 transition-colors">
                     <Trash2 size={14} />
                   </button>
                 </td>
@@ -124,6 +166,10 @@ export default function ScheduleManager() {
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="新建定时任务">
         <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">任务名称</label>
+            <input value={scheduleName} onChange={(e) => setScheduleName(e.target.value)} placeholder="如：每日销售日报" className={inputCls} />
+          </div>
           <div>
             <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">报告模板</label>
             <select value={templateId} onChange={(e) => setTemplateId(e.target.value)} className={inputCls}>
@@ -161,7 +207,7 @@ export default function ScheduleManager() {
 
           <div className="flex justify-end gap-3 pt-2">
             <button onClick={() => setModalOpen(false)} className="px-5 py-2.5 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700">取消</button>
-            <button onClick={handleSave} className="px-5 py-2.5 rounded-xl btn-gradient text-white text-sm font-semibold shadow-lg shadow-primary/20 active:scale-[0.98]">保存</button>
+            <button onClick={handleSave} disabled={saving} className="px-5 py-2.5 rounded-xl btn-gradient text-white text-sm font-semibold shadow-lg shadow-primary/20 active:scale-[0.98] disabled:opacity-50">保存</button>
           </div>
         </div>
       </Modal>

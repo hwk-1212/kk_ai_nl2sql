@@ -14,7 +14,7 @@ export default function DataPage() {
     loadDataSources()
   }, [loadDataSources])
 
-  const hasData = dataSources.length > 0
+  const hasData = (dataSources ?? []).length > 0
 
   return (
     <div className="flex flex-col h-full">

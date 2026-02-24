@@ -1,4 +1,9 @@
-"""语义层 — 指标向量化 + 语义检索"""
+"""语义层 — 指标向量化 + 语义检索。
+
+向量库 collection 分离约定:
+- 知识检索 (RAG): 各知识库独立 collection，命名 kb_{kb_id}，由 knowledge API 管理
+- 数据分析 (指标/语义): 本模块 kk_metrics，用于 lookup_metrics、指标推荐等
+"""
 import logging
 import uuid
 from typing import TYPE_CHECKING
@@ -14,6 +19,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# 数据分析专用 collection（与知识检索 kb_* 分离）
 COLLECTION_NAME = "kk_metrics"
 EMBEDDING_DIM = 1024
 

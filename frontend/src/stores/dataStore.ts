@@ -23,59 +23,69 @@ interface DataState {
   selectTable: (id: string | null) => void
 }
 
+const DATA_SOURCE_STATUSES = ['uploading', 'processing', 'ready', 'failed'] as const
+
 function mapSource(raw: DataSourceRaw): DataSource {
+  let status: DataSource['status'] = 'processing'
+  const s = (raw.status || '').toLowerCase()
+  if (DATA_SOURCE_STATUSES.includes(s as any)) status = s as DataSource['status']
+  else if (s === 'pending' || s === '') status = 'processing'
+  else if (s === 'error') status = 'failed'
+
   return {
-    id: raw.id,
+    id: String(raw.id),
     userId: '',
-    name: raw.name,
+    name: raw.name ?? '',
     sourceType: raw.file_type === 'csv' ? 'csv'
       : raw.file_type === 'sqlite' ? 'sqlite'
       : 'excel',
-    originalFilename: raw.file_name ?? raw.name,
+    originalFilename: raw.file_name ?? raw.name ?? '',
     fileSize: raw.file_size ?? 0,
-    tableCount: raw.table_count,
-    status: raw.status as DataSource['status'],
+    tableCount: raw.table_count ?? 0,
+    status,
     errorMessage: raw.error_message ?? undefined,
-    createdAt: raw.created_at,
-    updatedAt: raw.updated_at,
+    createdAt: raw.created_at ?? new Date().toISOString(),
+    updatedAt: raw.updated_at ?? new Date().toISOString(),
   }
 }
 
 function mapTable(raw: DataTableRaw): DataTable {
   return {
-    id: raw.id,
-    dataSourceId: raw.data_source_id,
+    id: String(raw.id),
+    dataSourceId: String(raw.data_source_id),
     userId: '',
-    pgSchema: raw.pg_schema,
-    pgTableName: raw.pg_table_name,
-    displayName: raw.display_name || raw.name,
+    pgSchema: raw.pg_schema ?? '',
+    pgTableName: raw.pg_table_name ?? '',
+    displayName: raw.display_name || raw.name || '',
     description: raw.description ?? undefined,
-    columnSchema: (raw.columns_meta ?? []).map((c) => ({
+    columnSchema: Array.isArray(raw.columns_meta) ? raw.columns_meta.map((c) => ({
       name: c.name,
       type: c.type,
       nullable: c.nullable,
       comment: c.comment ?? undefined,
-    })),
-    rowCount: raw.row_count,
-    isWritable: raw.is_writable,
-    createdAt: raw.created_at,
-    updatedAt: raw.updated_at ?? raw.created_at,
+    })) : [],
+    rowCount: raw.row_count ?? 0,
+    isWritable: raw.is_writable ?? true,
+    createdAt: raw.created_at ?? new Date().toISOString(),
+    updatedAt: raw.updated_at ?? raw.created_at ?? new Date().toISOString(),
   }
 }
 
 function mapTableData(raw: TableDataRaw): TableDataPage {
-  const records: Record<string, unknown>[] = raw.rows.map((row) => {
+  const rows = Array.isArray(raw?.rows) ? raw.rows : []
+  const columns = Array.isArray(raw?.columns) ? raw.columns : []
+  const records: Record<string, unknown>[] = rows.map((row) => {
     const obj: Record<string, unknown> = {}
-    raw.columns.forEach((col, i) => {
-      obj[col] = row[i] ?? null
+    columns.forEach((col, i) => {
+      obj[col] = Array.isArray(row) && i < row.length ? row[i] ?? null : null
     })
     return obj
   })
   return {
     data: records,
-    totalCount: raw.total_count,
-    nextCursor: raw.has_more ? String(raw.page + 1) : null,
-    hasMore: raw.has_more,
+    totalCount: raw?.total_count ?? 0,
+    nextCursor: raw?.has_more ? String((raw?.page ?? 1) + 1) : null,
+    hasMore: Boolean(raw?.has_more),
   }
 }
 
@@ -93,24 +103,30 @@ export const useDataStore = create<DataState>((set, get) => ({
     set({ isLoading: true })
     try {
       const res = await dataApi.getSources()
-      set({ dataSources: res.items.map(mapSource), isLoading: false })
+      const items = Array.isArray(res?.items) ? res.items : []
+      set({ dataSources: items.map(mapSource), isLoading: false })
     } catch (err) {
       console.error('Failed to load data sources:', err)
-      set({ isLoading: false })
+      set({ isLoading: false, dataSources: [] })
     }
   },
 
   loadTables: async (sourceId: string) => {
     try {
       const detail = await dataApi.getSource(sourceId)
-      const tables = (detail.tables ?? []).map(mapTable)
-      set({ tables })
+      const list = Array.isArray(detail?.tables) ? detail.tables : []
+      set({ tables: list.map(mapTable) })
     } catch {
-      const res = await dataApi.getTables()
-      const tables = res.items
-        .filter((t) => t.data_source_id === sourceId)
-        .map(mapTable)
-      set({ tables })
+      try {
+        const res = await dataApi.getTables()
+        const items = Array.isArray(res?.items) ? res.items : []
+        const tables = items
+          .filter((t) => String(t.data_source_id) === String(sourceId))
+          .map(mapTable)
+        set({ tables })
+      } catch {
+        set({ tables: [] })
+      }
     }
   },
 

@@ -13,6 +13,14 @@ const statusConfig: Record<DataSource['status'], { color: string; icon: typeof L
   failed: { color: 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400', icon: AlertCircle, label: '失败' },
 }
 
+const defaultStatusConfig = statusConfig.processing
+
+function getStatusConfig(status: string): { color: string; icon: typeof Loader2; label: string } {
+  const s = (status || '').toLowerCase()
+  if (s in statusConfig) return statusConfig[s as DataSource['status']]
+  return defaultStatusConfig
+}
+
 function getSourceIcon(type: DataSource['sourceType']) {
   switch (type) {
     case 'excel': return <FileSpreadsheet size={20} className="text-emerald-500" />
@@ -44,10 +52,12 @@ export default function DataSourceList() {
     if (dataSources.length === 0) loadDataSources()
   }, [dataSources.length, loadDataSources])
 
-  const filtered = dataSources.filter((ds) =>
-    ds.name.toLowerCase().includes(search.toLowerCase()) ||
-    ds.originalFilename.toLowerCase().includes(search.toLowerCase()),
-  )
+  const filtered = (dataSources ?? []).filter((ds) => {
+    const name = (ds.name ?? '').toLowerCase()
+    const filename = (ds.originalFilename ?? '').toLowerCase()
+    const q = search.toLowerCase()
+    return name.includes(q) || filename.includes(q)
+  })
 
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation()
@@ -81,8 +91,8 @@ export default function DataSourceList() {
       <div className="flex-1 overflow-y-auto px-3 pb-3 space-y-1.5">
         {filtered.map((ds) => {
           const isSelected = selectedSourceId === ds.id
-          const cfg = statusConfig[ds.status]
-          const StatusIcon = cfg.icon
+          const cfg = getStatusConfig(ds.status ?? '')
+          const StatusIcon = cfg?.icon ?? Clock
 
           return (
             <div key={ds.id}>
@@ -99,9 +109,9 @@ export default function DataSourceList() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-semibold text-slate-800 dark:text-white truncate">{ds.name}</span>
-                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-lg text-[10px] font-medium shrink-0 ${cfg.color}`}>
+                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-lg text-[10px] font-medium shrink-0 ${cfg?.color ?? defaultStatusConfig.color}`}>
                         <StatusIcon size={10} className={ds.status === 'uploading' || ds.status === 'processing' ? 'animate-spin' : ''} />
-                        {cfg.label}
+                        {cfg?.label ?? defaultStatusConfig.label}
                       </span>
                     </div>
                     <div className="flex items-center gap-2 mt-1 text-xs text-slate-400">

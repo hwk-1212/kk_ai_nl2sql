@@ -513,6 +513,23 @@ export const adminApi = {
     )
   },
 
+  dataAudit: {
+    list: (params?: { user_id?: string; table_id?: string; action?: string; status?: string; start_date?: string; end_date?: string; page?: number; page_size?: number }) => {
+      const q = new URLSearchParams()
+      if (params?.user_id) q.set('user_id', params.user_id)
+      if (params?.table_id) q.set('table_id', params.table_id)
+      if (params?.action) q.set('action', params.action)
+      if (params?.status) q.set('status', params.status)
+      if (params?.start_date) q.set('start_date', params.start_date)
+      if (params?.end_date) q.set('end_date', params.end_date)
+      if (params?.page) q.set('page', String(params.page))
+      if (params?.page_size) q.set('page_size', String(params.page_size))
+      return request<{ items: Record<string, unknown>[]; total: number; page: number; page_size: number }>(`/admin/data-audit/?${q.toString()}`)
+    },
+    stats: (days = 7) => request<Record<string, unknown>>(`/admin/data-audit/stats?days=${days}`),
+    getDetail: (logId: string) => request<Record<string, unknown>>(`/admin/data-audit/${logId}`),
+  },
+
   // Billing
   billingSummary: (period: 'week' | 'month' = 'month') =>
     request<Record<string, unknown>>(`/admin/billing/summary?period=${period}`),
@@ -642,4 +659,250 @@ export const modelsApi = {
     }>('/models'),
 }
 
+// ====== Metrics API ======
+export interface MetricRaw {
+  id: string
+  name: string
+  english_name: string
+  display_name: string | null
+  description: string | null
+  formula: string
+  data_table_id: string | null
+  source_table: string
+  dimensions: string[] | null
+  filters: string[] | null
+  time_granularity: string[] | null
+  category: string | null
+  aggregation: string | null
+  unit: string | null
+  tags: Record<string, unknown> | null
+  status: string
+  version: string
+  created_at: string
+  updated_at: string
+}
+
+export interface DimensionRaw {
+  id: string
+  name: string
+  english_name: string
+  display_name: string | null
+  description: string | null
+  source_column: string
+  data_table_id: string | null
+  dim_type: string
+  hierarchy: Record<string, unknown> | null
+  created_at: string
+}
+
+export interface BusinessTermRaw {
+  id: string
+  term: string
+  canonical_name: string
+  term_type: string
+  description: string | null
+  sql_expression: string | null
+  synonyms: string | null
+  created_at: string
+}
+
+export const metricApi = {
+  getMetrics: (params?: { category?: string; status?: string; skip?: number; limit?: number }) => {
+    const q = new URLSearchParams()
+    if (params?.category) q.set('category', params.category)
+    if (params?.status) q.set('status', params.status)
+    if (params?.skip != null) q.set('skip', String(params.skip))
+    if (params?.limit != null) q.set('limit', String(params.limit))
+    return request<MetricRaw[]>(`/metrics?${q.toString()}`)
+  },
+  getMetric: (id: string) => request<MetricRaw>(`/metrics/${id}`),
+  createMetric: (data: {
+    name: string
+    english_name: string
+    display_name?: string
+    description?: string
+    formula: string
+    data_table_id?: string
+    source_table: string
+    dimensions?: string[]
+    filters?: string[]
+    category?: string
+    aggregation?: string
+    unit?: string
+    tags?: Record<string, unknown>
+    status?: string
+  }) =>
+    request<MetricRaw>('/metrics', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updateMetric: (id: string, data: Partial<{
+    name: string
+    english_name: string
+    display_name: string
+    description: string
+    formula: string
+    data_table_id: string
+    source_table: string
+    dimensions: string[]
+    filters: string[]
+    category: string
+    aggregation: string
+    unit: string
+    tags: Record<string, unknown>
+    status: string
+  }>) =>
+    request<MetricRaw>(`/metrics/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  deleteMetric: (id: string) =>
+    request<null>(`/metrics/${id}`, { method: 'DELETE' }),
+  searchMetrics: (q: string, top_k?: number) =>
+    request<unknown[]>(`/metrics/search?q=${encodeURIComponent(q)}&top_k=${top_k ?? 5}`),
+
+  getDimensions: (params?: { skip?: number; limit?: number }) => {
+    const q = new URLSearchParams()
+    if (params?.skip != null) q.set('skip', String(params.skip))
+    if (params?.limit != null) q.set('limit', String(params.limit))
+    return request<DimensionRaw[]>(`/metrics/dimensions?${q.toString()}`)
+  },
+  createDimension: (data: { name: string; english_name: string; display_name?: string; description?: string; source_column: string; data_table_id?: string; dim_type?: string }) =>
+    request<DimensionRaw>('/metrics/dimensions', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updateDimension: (id: string, data: Partial<{ name: string; english_name: string; display_name: string; description: string; source_column: string; data_table_id: string; dim_type: string }>) =>
+    request<DimensionRaw>(`/metrics/dimensions/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  deleteDimension: (id: string) =>
+    request<null>(`/metrics/dimensions/${id}`, { method: 'DELETE' }),
+
+  getTerms: (params?: { skip?: number; limit?: number }) => {
+    const q = new URLSearchParams()
+    if (params?.skip != null) q.set('skip', String(params.skip))
+    if (params?.limit != null) q.set('limit', String(params.limit))
+    return request<BusinessTermRaw[]>(`/metrics/terms?${q.toString()}`)
+  },
+  createTerm: (data: { term: string; canonical_name: string; term_type?: string; description?: string; sql_expression?: string; synonyms?: string }) =>
+    request<BusinessTermRaw>('/metrics/terms', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updateTerm: (id: string, data: Partial<{ term: string; canonical_name: string; term_type: string; description: string; sql_expression: string; synonyms: string }>) =>
+    request<BusinessTermRaw>(`/metrics/terms/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  deleteTerm: (id: string) =>
+    request<null>(`/metrics/terms/${id}`, { method: 'DELETE' }),
+}
+
 export { setTokens, clearTokens, getToken }
+
+// ====== Data Permissions API ======
+export const dataPermissionApi = {
+  listRoles: () => request<{ id: string; name: string; description: string | null; is_default: boolean }[]>('/data-permissions/roles'),
+
+  getRole: (roleId: string) =>
+    request<{
+      id: string
+      name: string
+      description: string | null
+      is_default: boolean
+      table_permissions: { table_id: string; table_name: string; permission: string }[]
+      column_permissions: { table_id: string; column_name: string; visibility: string; masking_rule: string | null }[]
+      row_filters: { id: string; table_id: string; filter_expression: string; description: string | null }[]
+      assigned_user_ids: string[]
+    }>(`/data-permissions/roles/${roleId}`),
+
+  createRole: (data: { name: string; description?: string; is_default?: boolean }) => {
+    const q = new URLSearchParams()
+    q.set('name', data.name)
+    if (data.description != null) q.set('description', data.description)
+    if (data.is_default != null) q.set('is_default', String(data.is_default))
+    return request<{ id: string; name: string; description: string | null; is_default: boolean }>(
+      `/data-permissions/roles?${q.toString()}`,
+      { method: 'POST' }
+    )
+  },
+
+  updateRole: (roleId: string, data: { name?: string; description?: string; is_default?: boolean }) => {
+    const q = new URLSearchParams()
+    if (data.name != null) q.set('name', data.name)
+    if (data.description != null) q.set('description', data.description)
+    if (data.is_default != null) q.set('is_default', String(data.is_default))
+    return request<{ id: string; name: string; description: string | null; is_default: boolean }>(
+      `/data-permissions/roles/${roleId}?${q.toString()}`,
+      { method: 'PUT' }
+    )
+  },
+
+  deleteRole: (roleId: string) =>
+    request<null>(`/data-permissions/roles/${roleId}`, { method: 'DELETE' }),
+
+  setTablePermission: (roleId: string, tableId: string, permission: 'read' | 'write' | 'admin') =>
+    request<unknown>(
+      `/data-permissions/roles/${roleId}/table-permissions?table_id=${encodeURIComponent(tableId)}&permission=${permission}`,
+      { method: 'PUT' }
+    ),
+
+  deleteTablePermission: (roleId: string, tableId: string) =>
+    request<unknown>(`/data-permissions/roles/${roleId}/table-permissions?table_id=${encodeURIComponent(tableId)}`, { method: 'DELETE' }),
+
+  setColumnPermission: (roleId: string, tableId: string, columnName: string, visibility: 'visible' | 'masked' | 'hidden', maskingRule?: string) => {
+    const q = `table_id=${encodeURIComponent(tableId)}&column_name=${encodeURIComponent(columnName)}&visibility=${visibility}` + (maskingRule ? `&masking_rule=${encodeURIComponent(maskingRule)}` : '')
+    return request<unknown>(`/data-permissions/roles/${roleId}/column-permissions?${q}`, { method: 'PUT' })
+  },
+
+  setRowFilter: (roleId: string, tableId: string, filterExpression: string, description?: string) => {
+    const q = `table_id=${encodeURIComponent(tableId)}&filter_expression=${encodeURIComponent(filterExpression)}` + (description != null ? `&description=${encodeURIComponent(description)}` : '')
+    return request<unknown>(`/data-permissions/roles/${roleId}/row-filters?${q}`, { method: 'PUT' })
+  },
+
+  deleteRowFilter: (roleId: string, tableId: string) =>
+    request<unknown>(`/data-permissions/roles/${roleId}/row-filters?table_id=${encodeURIComponent(tableId)}`, { method: 'DELETE' }),
+
+  assignUser: (roleId: string, userId: string) =>
+    request<unknown>(`/data-permissions/roles/${roleId}/assign/${userId}`, { method: 'POST' }),
+
+  unassignUser: (roleId: string, userId: string) =>
+    request<null>(`/data-permissions/roles/${roleId}/assign/${userId}`, { method: 'DELETE' }),
+}
+
+// ====== Reports API ======
+export const reportApi = {
+  listReports: (params?: { status?: string; page?: number; page_size?: number }) => {
+    const q = new URLSearchParams()
+    if (params?.status) q.set('status', params.status)
+    if (params?.page) q.set('page', String(params.page))
+    if (params?.page_size) q.set('page_size', String(params.page_size))
+    return request<{ items: Record<string, unknown>[]; total: number; page: number; page_size: number }>(`/reports?${q.toString()}`)
+  },
+  createReport: (data: { title: string; template_id?: string; data_config?: Record<string, unknown> }) =>
+    request<Record<string, unknown>>('/reports', { method: 'POST', body: JSON.stringify(data) }),
+  getReport: (id: string) => request<Record<string, unknown>>(`/reports/${id}`),
+  updateReport: (id: string, data: { title?: string; content?: string; data_config?: Record<string, unknown> }) =>
+    request<Record<string, unknown>>(`/reports/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteReport: (id: string) => request<null>(`/reports/${id}`, { method: 'DELETE' }),
+  generateReport: (id: string, body?: { sql?: string; data_config?: Record<string, unknown> }) =>
+    request<{ status: string; report_id: string }>(`/reports/${id}/generate`, { method: 'POST', body: body ? JSON.stringify(body) : '{}' }),
+  exportReport: (id: string, format: 'html' | 'pdf' = 'html') =>
+    request<{ report_id: string; format: string; content: string; title: string }>(`/reports/${id}/export?format=${format}`),
+  listTemplates: () => request<Record<string, unknown>[]>(`/reports/templates/list`),
+  createTemplate: (data: { name: string; description?: string; template_content?: string; data_config?: Record<string, unknown>; category?: string }) =>
+    request<Record<string, unknown>>('/reports/templates', { method: 'POST', body: JSON.stringify(data) }),
+  updateTemplate: (id: string, data: { name?: string; description?: string; template_content?: string; data_config?: Record<string, unknown>; category?: string }) =>
+    request<Record<string, unknown>>(`/reports/templates/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteTemplate: (id: string) => request<null>(`/reports/templates/${id}`, { method: 'DELETE' }),
+  listSchedules: () => request<Record<string, unknown>[]>(`/reports/schedules/list`),
+  createSchedule: (data: { name: string; cron_expression: string; template_id?: string; data_config?: Record<string, unknown>; recipients?: string[] }) =>
+    request<Record<string, unknown>>('/reports/schedules', { method: 'POST', body: JSON.stringify(data) }),
+  updateSchedule: (id: string, data: { name?: string; cron_expression?: string; template_id?: string; data_config?: Record<string, unknown>; recipients?: string[] }) =>
+    request<Record<string, unknown>>(`/reports/schedules/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteSchedule: (id: string) => request<null>(`/reports/schedules/${id}`, { method: 'DELETE' }),
+  toggleSchedule: (id: string) => request<Record<string, unknown>>(`/reports/schedules/${id}/toggle`, { method: 'PATCH' }),
+  runSchedule: (id: string) => request<{ status: string; schedule_id: string }>(`/reports/schedules/${id}/run`, { method: 'POST' }),
+}

@@ -2,13 +2,16 @@ import { useState, useEffect, useCallback } from 'react'
 import { ArrowLeft, Save, Sparkles, Loader2, ListTree, FileText } from 'lucide-react'
 import type { Report, ReportSection, ReportTemplate } from '@/types'
 import { useReportStore } from '@/stores/reportStore'
+import { reportApi } from '@/services/api'
+import { toast } from '@/components/common/Toast'
 import ReportOutlineTree from './ReportOutlineTree'
-import { MOCK_AI_SECTIONS_CONTENT } from '@/mocks/reports'
 
 interface ReportEditorProps {
   reportId?: string
   templateId?: string
   onBack: () => void
+  onCreated?: (report: Report) => void
+  onGenerated?: () => void
 }
 
 function findSection(sections: ReportSection[], id: string): ReportSection | null {
@@ -54,7 +57,32 @@ function collectSectionIds(sections: ReportSection[]): string[] {
   return ids
 }
 
-export default function ReportEditor({ reportId, templateId, onBack }: ReportEditorProps) {
+function sectionsToMarkdown(sections: ReportSection[], depth = 1): string {
+  return sections.map((s) => {
+    const heading = '#'.repeat(depth)
+    let md = `${heading} ${s.title}\n\n`
+    if (s.content?.trim()) md += `${s.content.trim()}\n\n`
+    if (s.children?.length) md += sectionsToMarkdown(s.children, depth + 1)
+    return md
+  }).join('')
+}
+
+function mapApiReport(r: Record<string, unknown>): Report {
+  return {
+    id: String(r.id),
+    userId: String(r.user_id),
+    title: String(r.title),
+    reportType: ((r.report_type as string) || 'manual') as Report['reportType'],
+    status: ((r.status as string) || 'draft') as Report['status'],
+    content: r.content != null ? String(r.content) : undefined,
+    sections: (r.sections as Report['sections']) ?? undefined,
+    templateId: r.template_id != null ? String(r.template_id) : undefined,
+    createdAt: r.created_at != null ? new Date(r.created_at as string).toISOString() : '',
+    updatedAt: r.updated_at != null ? new Date(r.updated_at as string).toISOString() : '',
+  }
+}
+
+export default function ReportEditor({ reportId, templateId, onBack, onCreated, onGenerated }: ReportEditorProps) {
   const { reports, templates, addReport, updateReport } = useReportStore()
   const report = reportId ? reports.find((r) => r.id === reportId) : undefined
   const template = templateId ? templates.find((t) => t.id === templateId) : undefined
@@ -63,25 +91,36 @@ export default function ReportEditor({ reportId, templateId, onBack }: ReportEdi
   const [sections, setSections] = useState<ReportSection[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [generating, setGenerating] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [currentReportId, setCurrentReportId] = useState<string | undefined>(reportId)
 
   useEffect(() => {
     if (report) {
       setTitle(report.title)
-      setSections(report.sections ? JSON.parse(JSON.stringify(report.sections)) : [])
+      if (report.sections && report.sections.length > 0) {
+        setSections(JSON.parse(JSON.stringify(report.sections)))
+      } else if (report.content) {
+        setSections([{ id: `sec-${Date.now()}`, title: '内容', content: report.content, children: [] }])
+      } else {
+        setSections([{ id: `sec-${Date.now()}`, title: '概述', content: '', children: [] }])
+      }
       const allIds = report.sections ? collectSectionIds(report.sections) : []
       setSelectedId(allIds[0] ?? null)
+      setCurrentReportId(report.id)
     } else if (template?.outline) {
       setTitle('')
       const outline = JSON.parse(JSON.stringify(template.outline)) as ReportSection[]
       setSections(outline)
-      const allIds = collectSectionIds(outline)
-      setSelectedId(allIds[0] ?? null)
+      setSelectedId(collectSectionIds(outline)[0] ?? null)
+      setCurrentReportId(undefined)
     } else {
       setTitle('')
       setSections([{ id: `sec-${Date.now()}`, title: '概述', content: '', children: [] }])
+      setSelectedId(null)
+      setCurrentReportId(undefined)
     }
-  }, [report, template])
+  }, [report?.id, template?.id])
 
   const selectedSection = selectedId ? findSection(sections, selectedId) : null
 
@@ -111,43 +150,87 @@ export default function ReportEditor({ reportId, templateId, onBack }: ReportEdi
     setSections((prev) => updateSectionInTree(prev, id, (s) => ({ ...s, title: newTitle })))
   }
 
-  const handleAIGenerate = useCallback(() => {
-    setGenerating(true)
-    setTimeout(() => {
-      setSections((prev) => {
-        function fillContent(secs: ReportSection[]): ReportSection[] {
-          return secs.map((s) => ({
-            ...s,
-            content: s.content.trim() ? s.content : (MOCK_AI_SECTIONS_CONTENT[s.title] ?? `基于"${s.title}"章节的数据分析内容（AI 自动生成）。`),
-            children: s.children ? fillContent(s.children) : undefined,
-          }))
-        }
-        return fillContent(prev)
-      })
-      setGenerating(false)
-    }, 2500)
-  }, [])
-
-  const handleSave = () => {
-    if (!title.trim()) return
-    const now = new Date().toISOString()
-    if (report) {
-      updateReport(report.id, { title: title.trim(), sections, status: 'draft', updatedAt: now })
-    } else {
-      addReport({
-        id: `rpt-${Date.now()}`,
-        userId: 'u1',
-        title: title.trim(),
-        reportType: 'manual',
-        status: 'draft',
-        sections,
-        templateId: templateId,
-        createdAt: now,
-        updatedAt: now,
-      })
+  const handleAIGenerate = useCallback(async () => {
+    if (!currentReportId && !title.trim()) {
+      toast('info', '请先填写报告标题')
+      return
     }
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
+    let id = currentReportId
+    if (!id) {
+      setSaving(true)
+      try {
+        const created = await reportApi.createReport({
+          title: title.trim(),
+          template_id: templateId ?? undefined,
+          data_config: {},
+        })
+        const mapped = mapApiReport(created)
+        addReport(mapped)
+        onCreated?.(mapped)
+        id = mapped.id
+        setCurrentReportId(id)
+      } catch (e) {
+        console.error('Create report failed', e)
+        toast('error', e instanceof Error ? e.message : '创建报告失败')
+        setSaving(false)
+        return
+      }
+      setSaving(false)
+    }
+    setGenerating(true)
+    try {
+      await reportApi.generateReport(id, { data_config: {} })
+      const poll = async () => {
+        const res = await reportApi.getReport(id!)
+        const status = res.status as string
+        const mapped = mapApiReport(res)
+        updateReport(id!, { status: mapped.status, content: mapped.content, sections: mapped.sections, updatedAt: mapped.updatedAt })
+        if (status === 'ready') {
+          setGenerating(false)
+          onGenerated?.()
+          return
+        }
+        if (status === 'failed') {
+          setGenerating(false)
+          const errMsg = (res as { error_message?: string }).error_message
+          toast('error', errMsg || '报告生成失败')
+          return
+        }
+        setTimeout(poll, 2000)
+      }
+      setTimeout(poll, 2000)
+    } catch (e) {
+      console.error('Generate report failed', e)
+      toast('error', e instanceof Error ? e.message : '触发生成失败')
+      setGenerating(false)
+    }
+  }, [currentReportId, title, templateId, addReport, updateReport, onCreated, onGenerated])
+
+  const handleSave = async () => {
+    if (!title.trim()) return
+    setSaving(true)
+    try {
+      const content = sectionsToMarkdown(sections)
+      if (report) {
+        await reportApi.updateReport(report.id, { title: title.trim(), content })
+        updateReport(report.id, { title: title.trim(), content, updatedAt: new Date().toISOString() })
+      } else {
+        const created = await reportApi.createReport({
+          title: title.trim(),
+          template_id: templateId ?? undefined,
+          data_config: {},
+        })
+        const mapped = mapApiReport(created)
+        addReport(mapped)
+        onCreated?.(mapped)
+        setCurrentReportId(mapped.id)
+      }
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    } catch (e) {
+      console.error('Save report failed', e)
+    }
+    setSaving(false)
   }
 
   return (
@@ -169,19 +252,19 @@ export default function ReportEditor({ reportId, templateId, onBack }: ReportEdi
 
         <button
           onClick={handleAIGenerate}
-          disabled={generating || sections.length === 0}
+          disabled={generating || saving}
           className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-violet-50 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400 hover:bg-violet-100 dark:hover:bg-violet-900/50 disabled:opacity-50 transition-colors"
         >
           {generating ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-          AI 填充内容
+          AI 生成报告
         </button>
 
         <button
           onClick={handleSave}
-          disabled={!title.trim()}
+          disabled={!title.trim() || saving}
           className="flex items-center gap-1.5 px-5 py-2 rounded-xl btn-gradient text-white text-sm font-semibold shadow-lg shadow-primary/20 transition-all active:scale-[0.98] disabled:opacity-50"
         >
-          <Save size={14} />
+          {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
           {saved ? '已保存' : '保存'}
         </button>
       </div>

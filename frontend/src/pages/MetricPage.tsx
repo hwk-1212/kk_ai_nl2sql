@@ -35,19 +35,20 @@ export default function MetricPage() {
     store.loadAll()
   }, [])
 
-  const handleMetricSave = (data: Omit<Metric, 'id' | 'userId' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
-    const now = new Date().toISOString()
-    if (data.id) {
-      store.updateMetric(data.id, { ...data, updatedAt: now })
-    } else {
-      store.addMetric({
-        ...data,
-        id: `met-${Date.now()}`,
-        userId: 'u1',
-        tags: data.tags ?? [],
-        createdAt: now,
-        updatedAt: now,
-      } as Metric)
+  const handleMetricSave = async (data: Omit<Metric, 'id' | 'userId' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
+    try {
+      if (data.id) {
+        await store.updateMetric(data.id, { ...data, dataTableName: data.dataTableName || store.metrics.find(m => m.id === data.id)?.dataTableName })
+      } else {
+        await store.createMetric({
+          ...data,
+          dataTableName: data.dataTableName || data.name,
+          tags: data.tags ?? [],
+        } as Omit<Metric, 'id' | 'userId' | 'createdAt' | 'updatedAt'>)
+      }
+      setFormOpen(false)
+    } catch (e) {
+      console.error('Save metric failed:', e)
     }
   }
 
@@ -57,22 +58,31 @@ export default function MetricPage() {
     setDimModalOpen(true)
   }
 
-  const saveDim = () => {
-    if (!dimForm.name.trim() || !dimForm.displayName.trim()) return
-    const now = new Date().toISOString()
-    if (editDim) {
-      store.updateDimension(editDim.id, { ...dimForm, dataTableName: dimForm.dataTableName || undefined })
-    } else {
-      store.addDimension({
-        id: `dim-${Date.now()}`,
-        userId: 'u1',
-        ...dimForm,
-        dataTableName: dimForm.dataTableName || undefined,
-        createdAt: now,
-      } as Dimension)
+  const saveDim = async () => {
+    if (!dimForm.name.trim() || !dimForm.displayName.trim() || !dimForm.sourceColumn.trim()) return
+    try {
+      if (editDim) {
+        await store.updateDimension(editDim.id, {
+          name: dimForm.name,
+          displayName: dimForm.displayName,
+          sourceColumn: dimForm.sourceColumn,
+          dataTableName: dimForm.dataTableName || undefined,
+          dimType: dimForm.dimType,
+        })
+      } else {
+        await store.createDimension({
+          name: dimForm.name,
+          displayName: dimForm.displayName,
+          sourceColumn: dimForm.sourceColumn,
+          dataTableName: dimForm.dataTableName || undefined,
+          dimType: dimForm.dimType,
+        } as Omit<Dimension, 'id' | 'userId' | 'createdAt'>)
+      }
+      setDimModalOpen(false)
+      setEditDim(undefined)
+    } catch (e) {
+      console.error('Save dimension failed:', e)
     }
-    setDimModalOpen(false)
-    setEditDim(undefined)
   }
 
   const openTermEdit = (t: BusinessTerm) => {
@@ -81,24 +91,31 @@ export default function MetricPage() {
     setTermModalOpen(true)
   }
 
-  const saveTerm = () => {
+  const saveTerm = async () => {
     if (!termForm.term.trim() || !termForm.canonicalName.trim()) return
-    const now = new Date().toISOString()
-    if (editTerm) {
-      store.updateTerm(editTerm.id, { ...termForm, description: termForm.description || undefined, sqlExpression: termForm.sqlExpression || undefined, synonyms: termForm.synonyms || undefined })
-    } else {
-      store.addTerm({
-        id: `term-${Date.now()}`,
-        userId: 'u1',
-        ...termForm,
-        description: termForm.description || undefined,
-        sqlExpression: termForm.sqlExpression || undefined,
-        synonyms: termForm.synonyms || undefined,
-        createdAt: now,
-      } as BusinessTerm)
+    try {
+      if (editTerm) {
+        await store.updateTerm(editTerm.id, {
+          term: termForm.term,
+          canonicalName: termForm.canonicalName,
+          description: termForm.description || undefined,
+          sqlExpression: termForm.sqlExpression || undefined,
+          synonyms: termForm.synonyms || undefined,
+        })
+      } else {
+        await store.createTerm({
+          term: termForm.term,
+          canonicalName: termForm.canonicalName,
+          description: termForm.description || undefined,
+          sqlExpression: termForm.sqlExpression || undefined,
+          synonyms: termForm.synonyms || undefined,
+        } as Omit<BusinessTerm, 'id' | 'userId' | 'createdAt'>)
+      }
+      setTermModalOpen(false)
+      setEditTerm(undefined)
+    } catch (e) {
+      console.error('Save term failed:', e)
     }
-    setTermModalOpen(false)
-    setEditTerm(undefined)
   }
 
   const inputCls =

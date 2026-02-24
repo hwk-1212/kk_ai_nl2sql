@@ -58,6 +58,70 @@ async def create_role(
     return {"id": str(role.id), "name": role.name, "description": role.description, "is_default": role.is_default}
 
 
+@router.get("/roles/{role_id}")
+async def get_role(
+    role_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """获取角色详情（含表/列/行权限及已分配用户）"""
+    result = await db.execute(
+        select(DataRole).where(
+            DataRole.id == role_id,
+            DataRole.tenant_id == current_user.tenant_id if current_user.tenant_id else None,
+        )
+    )
+    role = result.scalar_one_or_none()
+    if not role:
+        raise HTTPException(status_code=404, detail="Role not found")
+
+    # Table permissions
+    tp_result = await db.execute(
+        select(TablePermission, DataTable.display_name).join(
+            DataTable, TablePermission.data_table_id == DataTable.id
+        ).where(TablePermission.data_role_id == role_id)
+    )
+    table_permissions = [
+        {"table_id": str(row[0].data_table_id), "table_name": row[1] or str(row[0].data_table_id), "permission": row[0].permission}
+        for row in tp_result.all()
+    ]
+
+    # Column permissions (group by table)
+    cp_result = await db.execute(
+        select(ColumnPermission).where(ColumnPermission.data_role_id == role_id)
+    )
+    column_permissions = [
+        {"table_id": str(c.data_table_id), "column_name": c.column_name, "visibility": c.visibility, "masking_rule": c.masking_rule}
+        for c in cp_result.scalars().all()
+    ]
+
+    # Row filters
+    rf_result = await db.execute(
+        select(RowFilter).where(RowFilter.data_role_id == role_id)
+    )
+    row_filters = [
+        {"id": str(r.id), "table_id": str(r.data_table_id), "filter_expression": r.filter_expression, "description": r.description}
+        for r in rf_result.scalars().all()
+    ]
+
+    # Assigned users
+    a_result = await db.execute(
+        select(DataRoleAssignment.user_id).where(DataRoleAssignment.data_role_id == role_id)
+    )
+    assigned_user_ids = [str(u[0]) for u in a_result.all()]
+
+    return {
+        "id": str(role.id),
+        "name": role.name,
+        "description": role.description,
+        "is_default": role.is_default,
+        "table_permissions": table_permissions,
+        "column_permissions": column_permissions,
+        "row_filters": row_filters,
+        "assigned_user_ids": assigned_user_ids,
+    }
+
+
 @router.put("/roles/{role_id}")
 async def update_role(
     role_id: uuid.UUID,
@@ -200,6 +264,27 @@ async def set_table_permissions(
     return {"role_id": str(role_id), "table_id": str(table_id), "permission": permission}
 
 
+@router.delete("/roles/{role_id}/table-permissions")
+async def delete_table_permission(
+    role_id: uuid.UUID,
+    table_id: uuid.UUID = Query(..., alias="table_id"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """移除表级权限"""
+    result = await db.execute(
+        select(TablePermission).where(
+            TablePermission.data_role_id == role_id,
+            TablePermission.data_table_id == table_id,
+        )
+    )
+    perm = result.scalar_one_or_none()
+    if perm:
+        await db.delete(perm)
+        await db.commit()
+    return {"role_id": str(role_id), "table_id": str(table_id)}
+
+
 @router.put("/roles/{role_id}/column-permissions")
 async def set_column_permissions(
     role_id: uuid.UUID,
@@ -269,3 +354,24 @@ async def set_row_filters(
         db.add(row_filter)
     await db.commit()
     return {"role_id": str(role_id), "table_id": str(table_id), "filter_expression": filter_expression}
+
+
+@router.delete("/roles/{role_id}/row-filters")
+async def delete_row_filter(
+    role_id: uuid.UUID,
+    table_id: uuid.UUID = Query(..., alias="table_id"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """删除行级过滤"""
+    result = await db.execute(
+        select(RowFilter).where(
+            RowFilter.data_role_id == role_id,
+            RowFilter.data_table_id == table_id,
+        )
+    )
+    row_filter = result.scalar_one_or_none()
+    if row_filter:
+        await db.delete(row_filter)
+        await db.commit()
+    return {"role_id": str(role_id), "table_id": str(table_id)}

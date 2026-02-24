@@ -57,7 +57,15 @@ export default function ReportPage() {
   const viewReport = activeReportId ? store.reports.find((r) => r.id === activeReportId) : undefined
 
   if (viewMode === 'edit') {
-    return <ReportEditor reportId={activeReportId} templateId={templateId} onBack={handleBack} />
+    return (
+      <ReportEditor
+        reportId={activeReportId}
+        templateId={templateId}
+        onBack={handleBack}
+        onCreated={(r) => setActiveReportId(r.id)}
+        onGenerated={() => setViewMode('view')}
+      />
+    )
   }
 
   if (viewMode === 'view' && viewReport) {
@@ -167,7 +175,7 @@ export default function ReportPage() {
             <h4 className="font-bold text-sm text-slate-800 dark:text-white">空白报告</h4>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">从零开始，自由编排目录和内容</p>
           </button>
-          {store.templates.filter((t) => t.outline && t.outline.length > 0).map((t) => (
+          {store.templates.map((t) => (
             <button
               key={t.id}
               onClick={() => handleCreateFromTemplate(t.id)}
@@ -175,9 +183,11 @@ export default function ReportPage() {
             >
               <div className="flex items-center justify-between">
                 <h4 className="font-bold text-sm text-slate-800 dark:text-white">{t.name}</h4>
-                <span className="px-2 py-0.5 text-xs rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400">
-                  {t.outline!.length} 章节
-                </span>
+                {(t.outline?.length ?? 0) > 0 && (
+                  <span className="px-2 py-0.5 text-xs rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400">
+                    {t.outline!.length} 章节
+                  </span>
+                )}
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{t.description}</p>
             </button>

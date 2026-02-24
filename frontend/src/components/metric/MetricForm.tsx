@@ -6,7 +6,7 @@ interface MetricFormProps {
   open: boolean
   onClose: () => void
   metric?: Metric
-  onSave: (data: Omit<Metric, 'id' | 'userId' | 'createdAt' | 'updatedAt'> & { id?: string }) => void
+  onSave: (data: Omit<Metric, 'id' | 'userId' | 'createdAt' | 'updatedAt'> & { id?: string }) => void | Promise<void>
 }
 
 const AGGREGATIONS = ['SUM', 'AVG', 'COUNT', 'MAX', 'MIN'] as const
@@ -22,6 +22,7 @@ export default function MetricForm({ open, onClose, metric, onSave }: MetricForm
   const [unit, setUnit] = useState('')
   const [tagsStr, setTagsStr] = useState('')
   const [status, setStatus] = useState<Metric['status']>('draft')
+  const [sourceTable, setSourceTable] = useState('')
 
   useEffect(() => {
     if (metric) {
@@ -33,6 +34,7 @@ export default function MetricForm({ open, onClose, metric, onSave }: MetricForm
       setUnit(metric.unit ?? '')
       setTagsStr(metric.tags.join(', '))
       setStatus(metric.status)
+      setSourceTable(metric.dataTableName ?? '')
     } else {
       setName('')
       setDisplayName('')
@@ -42,17 +44,19 @@ export default function MetricForm({ open, onClose, metric, onSave }: MetricForm
       setUnit('')
       setTagsStr('')
       setStatus('draft')
+      setSourceTable('')
     }
   }, [metric, open])
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!name.trim() || !displayName.trim() || !formula.trim()) return
-    onSave({
+    await onSave({
       id: metric?.id,
       name: name.trim(),
       displayName: displayName.trim(),
       description: description.trim() || undefined,
       formula: formula.trim(),
+      dataTableName: sourceTable.trim() || name.trim(),
       aggregation: aggregation || undefined,
       unit: unit.trim() || undefined,
       tags: tagsStr
@@ -99,6 +103,16 @@ export default function MetricForm({ open, onClose, metric, onSave }: MetricForm
             onChange={(e) => setFormula(e.target.value)}
             placeholder="SUM(order_items.price * order_items.quantity)"
             className={`${inputCls} font-mono bg-slate-900 dark:bg-slate-900 text-emerald-400 dark:text-emerald-400 border-slate-700`}
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">来源表（SQL 中用到的表名）</label>
+          <input
+            value={sourceTable}
+            onChange={(e) => setSourceTable(e.target.value)}
+            placeholder="如 orders 或 order_items"
+            className={`${inputCls} font-mono`}
           />
         </div>
 

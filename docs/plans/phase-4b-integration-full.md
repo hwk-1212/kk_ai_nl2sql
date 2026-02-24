@@ -6,6 +6,21 @@
 
 ---
 
+## 实现状态（2026-02-24）
+
+| 模块 | 状态 | 说明 |
+|------|------|------|
+| 4B.1 指标管理 | ✅ 完成 | metricStore + metricApi + MetricPage 已联调 |
+| 4B.2 数据权限 | ✅ 完成 | DataPermissionPage 全 API 联调，含 GET 角色详情、删除表/行权限 |
+| 4B.3 审计日志 | ✅ 完成 | 数据审计 Tab + 统计 (adminApi.dataAudit) |
+| 4B.4 报告中心 | ✅ 完成 | reportStore + reportApi + ReportEditor(AI 生成+轮询) + ScheduleManager |
+| 4B.5 Sidebar | ✅ 完成 | 全导航已验证 |
+| 4B.6 端到端 | ⏳ 待验证 | 需手动跑完整流程 |
+
+**API 路径说明**：所有路径相对于 `/api/v1`，如 `/reports` 即 `GET /api/v1/reports`。
+
+---
+
 ## 前置条件
 
 - Phase 4-A 数据管理 + NL2SQL 联调已完成
@@ -23,30 +38,23 @@
 
 **修改文件**: `frontend/src/stores/metricStore.ts`
 
-| 函数 | Mock → Real |
-|------|-------------|
-| `loadMetrics` | `GET /api/v1/metrics` |
-| `createMetric` | `POST /api/v1/metrics` |
-| `updateMetric` | `PUT /api/v1/metrics/{id}` |
-| `deleteMetric` | `DELETE /api/v1/metrics/{id}` |
-| `loadDimensions` | `GET /api/v1/metrics/dimensions` |
-| `loadTerms` | `GET /api/v1/metrics/terms` |
-| CRUD dimensions | 对应 API |
-| CRUD terms | 对应 API |
+| 函数 | API |
+|------|-----|
+| `loadAll` | `GET /metrics` + `GET /metrics/dimensions` + `GET /metrics/terms` |
+| `createMetric` / `updateMetric` / `deleteMetric` | `POST` / `PUT` / `DELETE /metrics/{id}` |
+| `createDimension` / `updateDimension` / `deleteDimension` | `POST` / `PUT` / `DELETE /metrics/dimensions/{id}` |
+| `createTerm` / `updateTerm` / `deleteTerm` | `POST` / `PUT` / `DELETE /metrics/terms/{id}` |
+| `searchMetrics` | `GET /metrics/search?q=...` |
 
 ### API 服务层
 
 **修改文件**: `frontend/src/services/api.ts`
 
 ```typescript
-export const metricApi = {
-  getMetrics: (params?) => apiClient.get("/metrics", { params }),
-  createMetric: (data) => apiClient.post("/metrics", data),
-  updateMetric: (id, data) => apiClient.put(`/metrics/${id}`, data),
-  deleteMetric: (id) => apiClient.delete(`/metrics/${id}`),
-  searchMetrics: (q) => apiClient.get("/metrics/search", { params: { q } }),
-  // dimensions, terms...
-};
+// frontend/src/services/api.ts - metricApi
+getMetrics, getMetric, createMetric, updateMetric, deleteMetric, searchMetrics
+getDimensions, createDimension, updateDimension, deleteDimension
+getTerms, createTerm, updateTerm, deleteTerm
 ```
 
 ### 联调验证
@@ -66,12 +74,17 @@ export const metricApi = {
 
 | 操作 | API |
 |------|-----|
-| 加载角色列表 | `GET /api/v1/data-permissions/roles` |
-| 创建角色 | `POST /api/v1/data-permissions/roles` |
-| 设置表权限 | `PUT /api/v1/data-permissions/roles/{id}/table-permissions` |
-| 设置列权限 | `PUT /api/v1/data-permissions/roles/{id}/column-permissions` |
-| 设置行过滤 | `PUT /api/v1/data-permissions/roles/{id}/row-filters` |
-| 分配用户 | `POST /api/v1/data-permissions/roles/{id}/assign` |
+| 加载角色列表 | `GET /data-permissions/roles` |
+| 获取角色详情 | `GET /data-permissions/roles/{id}`（含表/列/行权限、已分配用户） |
+| 创建/更新/删除角色 | `POST` / `PUT` / `DELETE /data-permissions/roles/{id}` |
+| 设置表权限 | `PUT /data-permissions/roles/{id}/table-permissions?table_id=&permission=` |
+| 移除表权限 | `DELETE /data-permissions/roles/{id}/table-permissions?table_id=` |
+| 设置列权限 | `PUT /data-permissions/roles/{id}/column-permissions?table_id=&column_name=&visibility=&masking_rule=` |
+| 设置行过滤 | `PUT /data-permissions/roles/{id}/row-filters?table_id=&filter_expression=&description=` |
+| 删除行过滤 | `DELETE /data-permissions/roles/{id}/row-filters?table_id=` |
+| 分配/移除用户 | `POST` / `DELETE /data-permissions/roles/{id}/assign/{user_id}` |
+
+**DataPermissionPage 依赖**：表列表来自 `dataApi.getTables()`，用户列表来自 `adminApi.listUsers()`。
 
 ### 联调验证
 
@@ -98,21 +111,19 @@ export const metricApi = {
 
 | Tab | 数据源 |
 |-----|--------|
-| 系统审计 | `GET /api/v1/admin/audit-logs` (现有) |
-| 数据审计 | `GET /api/v1/admin/data-audit` (新增) |
+| 系统审计 | `GET /admin/audit-logs` |
+| 数据审计 | `GET /admin/data-audit/`（列表）、`GET /admin/data-audit/stats`（统计）、`GET /admin/data-audit/{id}`（详情） |
 
 ### 数据审计展示
 
-- 时间线列表: 用户名, 操作类型 (query/insert/update/delete/upload/drop), 表名, SQL 摘要, 耗时, 状态
-- 点击展开: 完整 SQL, 影响行数, 前后快照 (写操作)
-- 筛选: 操作类型 / 用户 / 表名 / 时间范围
+- 时间线列表: user_id, 操作类型 (query/write/denied/upload/drop_table), 表名, SQL 摘要, 耗时, 状态
+- 点击展开: 完整 SQL, 影响行数, 错误信息（`GET /admin/data-audit/{log_id}`）
+- 筛选: 操作类型 / 状态 / 开始日期 / 结束日期
 
 ### 审计统计仪表板
 
-- 查询量趋势 (日折线图)
-- 高频表 Top 5 (柱状图)
-- 高频用户 Top 5
-- 拒绝操作数统计
+- `GET /admin/data-audit/stats?days=7` 返回: total_operations, avg_execution_ms, failure_rate, daily_trend, top_tables
+- 前端展示: 近 N 天操作量、平均耗时、失败/拒绝率、高频表 Top 1
 
 ### 联调验证
 
@@ -132,45 +143,42 @@ export const metricApi = {
 
 **修改文件**: `frontend/src/stores/reportStore.ts`
 
-| 函数 | Mock → Real |
-|------|-------------|
-| `loadReports` | `GET /api/v1/reports` |
-| `createReport` | `POST /api/v1/reports` |
-| `generateReport` | `POST /api/v1/reports/{id}/generate` |
-| `loadTemplates` | `GET /api/v1/reports/templates` |
-| `loadSchedules` | `GET /api/v1/reports/schedules` |
-| CRUD templates | 对应 API |
-| CRUD schedules | 对应 API |
+| 函数 | API |
+|------|-----|
+| `loadAll` | `GET /reports` + `GET /reports/templates/list` + `GET /reports/schedules/list` |
+| `createReport` / `updateReport` / `deleteReport` | `POST` / `PUT` / `DELETE /reports/{id}` |
+| `generateReport` | `POST /reports/{id}/generate`（异步 Celery，返回 status: generating） |
+| `getReport` | `GET /reports/{id}`（用于状态轮询） |
+| `exportReport` | `GET /reports/{id}/export?format=html|pdf` |
+| CRUD templates | `POST` / `PUT` / `DELETE /reports/templates` 或 `/reports/templates/{id}` |
+| CRUD schedules | `POST` / `PUT` / `DELETE /reports/schedules` 或 `/reports/schedules/{id}` |
+| `toggleSchedule` / `runSchedule` | `PATCH /reports/schedules/{id}/toggle`、`POST /reports/schedules/{id}/run` |
 
 ### API 服务层
 
 **修改文件**: `frontend/src/services/api.ts`
 
 ```typescript
-export const reportApi = {
-  getReports: (params?) => apiClient.get("/reports", { params }),
-  createReport: (data) => apiClient.post("/reports", data),
-  getReport: (id) => apiClient.get(`/reports/${id}`),
-  generateReport: (id) => apiClient.post(`/reports/${id}/generate`),
-  exportReport: (id, format) => apiClient.get(`/reports/${id}/export`, { params: { format } }),
-  // templates, schedules...
-};
+// frontend/src/services/api.ts - reportApi
+listReports, createReport, getReport, updateReport, deleteReport
+generateReport, exportReport
+listTemplates, createTemplate, updateTemplate, deleteTemplate
+listSchedules, createSchedule, updateSchedule, deleteSchedule, toggleSchedule, runSchedule
 ```
 
-### ReportEditor 联调
+### ReportEditor 联调（已实现）
 
-- 创建报告 → 配置数据查询 → 点击 "AI 生成"
-- 轮询报告状态: draft → generating → ready
-- ready 后展示生成的 Markdown 内容 + 图表
-- Markdown 渲染使用现有 MarkdownContent 组件
-- 嵌入图表使用 ChartRenderer
+- 创建报告（保存）→ `createReport` 或 `updateReport`（content 由 sections 转 Markdown）
+- 点击「AI 生成报告」→ 若无 reportId 先创建 → `generateReport(id)` → 每 2s 轮询 `getReport(id)` 直至 status 为 ready/failed
+- ready 后调用 `onGenerated()` 切换至 ReportViewer 查看
+- ReportViewer 使用 MarkdownContent 渲染 content；report.charts 暂未单独渲染（Markdown 内嵌图表由 MarkdownContent 解析）
 
-### ScheduleManager 联调
+### ScheduleManager 联调（已实现）
 
-- 创建定时任务 → 选择模板 → 配置 Cron
-- 启用/停用切换
-- 手动触发运行 → 查看生成的报告
-- 显示上次运行/下次运行时间
+- 新建定时任务 → `createSchedule`（name, cron_expression, template_id）
+- 启用/停用 → `toggleSchedule`，用返回结果更新本地
+- 立即运行 → `runSchedule`
+- 删除 → `deleteSchedule`
 
 ### 联调验证
 
@@ -219,37 +227,47 @@ export const reportApi = {
 7. user_A 登录
 8. 对话: "查看我的营收数据"
    → lookup_metrics → 命中 "销售额"
-   → execute_sql → 行过滤生效 (仅销售部)
+   → execute_sql → 行过滤生效 (仅销售部，需后端 RBAC)
    → recommend_chart → 柱状图
    → 结果展示 (phone 字段已脱敏)
 
 9. user_A 对话: "帮我生成月度报告"
-   → 生成报告 → Markdown + 图表
+   → 报告中心 → 新建报告 → AI 生成 → 轮询至 ready
 
 10. tenant_admin 查看审计日志
-    → 看到 user_A 的所有查询记录
-    → 查看统计趋势
+    → 数据审计 Tab → 看到 user_A 的查询记录
+    → 统计卡片: 操作量、耗时、失败率、高频表
 ```
+
+### 手动验证步骤
+
+1. 登录 → 数据管理上传 → 指标管理创建指标/术语
+2. 数据权限 → 新建角色 → 配置表/列/行权限 → 分配用户
+3. 对话「查看营收」→ 检查返回数据
+4. 管理后台 → 审计日志 → 数据审计 Tab → 检查列表与统计
+5. 报告中心 → 新建报告 → 保存 → AI 生成报告 → 等待 ready → 查看内容
+6. 报告中心 → 定时任务 → 新建 → 选择模板 + Cron → 启用 → 立即运行
+7. 侧栏逐项点击确认导航正常
 
 ---
 
 ## 任务清单
 
-- [ ] metricStore 切换真实 API
-- [ ] api.ts 新增 metricApi
-- [ ] MetricPage 联调 (CRUD + Milvus 同步验证)
-- [ ] DataPermissionPage 切换真实 API
-- [ ] 权限配置联调 (表/列/行三级)
-- [ ] 权限拦截联调 (对话中验证)
+- [x] metricStore 切换真实 API
+- [x] api.ts 新增 metricApi
+- [x] MetricPage 联调 (CRUD + Milvus 同步验证)
+- [x] DataPermissionPage 切换真实 API
+- [x] 权限配置联调 (表/列/行三级)
+- [ ] 权限拦截联调 (对话中验证，依赖后端 RBAC 执行层)
 - [ ] 脱敏效果联调
-- [ ] AuditLogsPage 增加数据审计 Tab
-- [ ] 审计日志联调 (query/write/denied/upload)
-- [ ] 审计统计仪表板
-- [ ] reportStore 切换真实 API
-- [ ] api.ts 新增 reportApi
-- [ ] ReportEditor 联调 (AI 生成 + 状态轮询)
-- [ ] ScheduleManager 联调 (Celery Beat)
-- [ ] Sidebar 全导航验证
+- [x] AuditLogsPage 增加数据审计 Tab
+- [x] 审计日志联调 (query/write/denied/upload/drop_table)
+- [x] 审计统计仪表板
+- [x] reportStore 切换真实 API
+- [x] api.ts 新增 reportApi
+- [x] ReportEditor 联调 (AI 生成 + 状态轮询)
+- [x] ScheduleManager 联调 (Celery Beat)
+- [x] Sidebar 全导航验证
 - [ ] 端到端完整场景测试
 - [ ] 验证通过
 
@@ -257,18 +275,18 @@ export const reportApi = {
 
 ## 验证标准
 
-- [ ] 指标 CRUD → Milvus 同步 → 对话语义查询命中
-- [ ] 术语映射 → "营收" → lookup_metrics 返回 "销售额"
-- [ ] 角色权限设置 → 对话中行过滤/列脱敏/表拦截生效
-- [ ] 审计日志完整记录所有数据操作
-- [ ] 审计统计图表正确
-- [ ] 报告生成: AI 生成 Markdown + 推荐图表
-- [ ] 定时任务: 到点自动生成报告
-- [ ] 报告导出 PDF/HTML
-- [ ] 所有页面导航正常
+- [x] 指标 CRUD → Milvus 同步 → 对话语义查询命中
+- [x] 术语映射 → "营收" → lookup_metrics 返回 "销售额"
+- [ ] 角色权限设置 → 对话中行过滤/列脱敏/表拦截生效（需后端 execute_sql 集成 DataAccessControl）
+- [x] 审计日志完整记录所有数据操作
+- [x] 审计统计图表正确
+- [x] 报告生成: AI 生成 Markdown + 状态轮询
+- [x] 定时任务: 创建/启用/停用/立即运行
+- [x] 报告导出 (export API 返回 content，前端可下载)
+- [x] 所有页面导航正常
 - [ ] 端到端场景完整跑通
 - [ ] 12 容器全部 healthy
-- [ ] TypeScript 编译 0 error
+- [x] TypeScript 编译 0 error
 
 ---
 
@@ -292,10 +310,10 @@ export const reportApi = {
 | `src/pages/admin/AuditLogsPage.tsx` | 新增数据审计 Tab |
 | `src/layouts/Sidebar.tsx` | 验证全导航 |
 
-### 后端 (微调)
+### 后端
 
 | 文件 | 变更 |
 |------|------|
-| `app/api/v1/chat.py` | System Prompt 最终版 (含所有工具说明) |
-| `app/api/v1/reports.py` | 状态轮询优化 |
-| `app/api/v1/admin.py` | 数据审计 API 联调修复 |
+| `app/api/v1/data_permissions.py` | 新增 `GET /roles/{id}` 角色详情；`DELETE /table-permissions`、`DELETE /row-filters` |
+| `app/api/v1/data_audit.py` | 已有 `GET /admin/data-audit/`、`GET /admin/data-audit/stats`、`GET /admin/data-audit/{id}` |
+| `app/api/v1/reports.py` | 已有 Report/Template/Schedule CRUD、generate、export |

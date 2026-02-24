@@ -134,6 +134,7 @@ async def lifespan(app: FastAPI):
             "ALTER TABLE data_audit_logs ADD COLUMN IF NOT EXISTS sql_hash VARCHAR(64)",
             "ALTER TABLE data_audit_logs ADD COLUMN IF NOT EXISTS affected_rows INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE data_audit_logs ADD COLUMN IF NOT EXISTS result_row_count INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE data_audit_logs ADD COLUMN IF NOT EXISTS row_count INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE data_audit_logs ADD COLUMN IF NOT EXISTS before_snapshot JSONB",
             "ALTER TABLE data_audit_logs ADD COLUMN IF NOT EXISTS after_snapshot JSONB",
             "ALTER TABLE data_audit_logs ADD COLUMN IF NOT EXISTS client_ip VARCHAR(45)",

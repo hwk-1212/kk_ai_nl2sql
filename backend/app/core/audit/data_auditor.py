@@ -56,7 +56,7 @@ class DataAuditor:
             sql_text=self._sanitize_sql(sql),
             sql_hash=self._sql_hash(sql),
             execution_ms=execution_ms,
-            result_row_count=row_count,
+            result_row_count=row_count if row_count is not None else 0,
             status=status,
             error_message=error,
             client_ip=self._extract_ip(request),
@@ -67,6 +67,10 @@ class DataAuditor:
             await db.flush()
         except Exception as e:
             logger.warning("Audit log_query flush failed: %s", e)
+            try:
+                await db.rollback()
+            except Exception:
+                pass
 
     async def log_write(
         self,

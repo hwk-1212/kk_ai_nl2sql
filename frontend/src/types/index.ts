@@ -346,4 +346,6 @@ export interface RoleRowFilter {
   id: string
   filterExpression: string
   description?: string
+  /** 表 ID，用于删除行过滤时调用 API */
+  tableId?: string
 }
