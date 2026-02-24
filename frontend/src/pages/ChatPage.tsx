@@ -4,10 +4,9 @@ import MessageList from '@/components/chat/MessageList'
 import ChatInput from '@/components/chat/ChatInput'
 import ProcessPanel from '@/components/chat/ProcessPanel'
 import { useChatStore } from '@/stores/chatStore'
-import { mockProcessSteps } from '@/mocks/processSteps'
 
 export default function ChatPage() {
-  const { loaded, loadConversations, showProcessPanel, toggleProcessPanel } = useChatStore()
+  const { loaded, loadConversations, processSteps, showProcessPanel, toggleProcessPanel } = useChatStore()
 
   useEffect(() => {
     if (!loaded) {
@@ -38,7 +37,7 @@ export default function ChatPage() {
 
       {/* process panel */}
       <ProcessPanel
-        steps={mockProcessSteps}
+        steps={processSteps}
         open={showProcessPanel}
         onClose={toggleProcessPanel}
       />

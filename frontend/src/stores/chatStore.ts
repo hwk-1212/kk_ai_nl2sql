@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Conversation, Message, ModelId, MemoryFragment, RAGSource, ToolCall, ProcessStep } from '@/types'
+import type { Conversation, Message, ModelId, MemoryFragment, RAGSource, ToolCall, ProcessStep, ChartConfig } from '@/types'
 import { conversationsApi, streamChat, type ConvResponse, type ConvDetail, type MemoryRecallPayload } from '@/services/api'
 
 interface ChatState {
@@ -229,11 +229,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
     // 开始 SSE 流式请求
     abortController = new AbortController()
     set({ isStreaming: true, streamingContent: '', streamingReasoning: '' })
+    get().clearProcessSteps()
 
     let finalConvId = convId
     let recalledMemories: MemoryFragment[] = []
     let ragSources: RAGSource[] = []
     const toolCalls: ToolCall[] = []
+    let chartConfig: ChartConfig | undefined
 
     try {
       await streamChat(
@@ -271,6 +273,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
               score: s.score,
               source: s.source,
             }))
+            get().addProcessStep({
+              id: 'rag-' + Date.now(),
+              type: 'rag_source',
+              title: `知识库检索: ${sources.length} 条结果`,
+              status: 'success',
+              startTime: Date.now(),
+              endTime: Date.now(),
+              data: { sources: sources.map((s) => ({ title: s.source, score: s.score })) },
+            })
           },
           onToolCall: (data) => {
             toolCalls.push({
@@ -279,6 +290,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
               arguments: data.arguments,
               status: 'calling',
             })
+            get().addProcessStep({
+              id: data.id,
+              type: 'tool_call',
+              title: `调用工具: ${data.name}`,
+              status: 'running',
+              startTime: Date.now(),
+              data: { tool: data.name, ...data.arguments },
+            })
           },
           onToolResult: (data) => {
             const tc = toolCalls.find((t) => t.id === data.id)
@@ -286,6 +305,52 @@ export const useChatStore = create<ChatState>((set, get) => ({
               tc.status = data.status === 'success' ? 'success' : 'error'
               tc.result = data.result || undefined
               tc.error = data.error || undefined
+            }
+
+            const endTime = Date.now()
+            const stepStatus = data.status === 'success' ? 'success' as const : 'error' as const
+
+            get().updateProcessStep(data.id, { status: stepStatus, endTime })
+
+            const structured = (data as Record<string, unknown>).structured_data as Record<string, unknown> | undefined
+
+            if (data.name === 'execute_sql') {
+              const parsed = structured?.type === 'sql_result' ? structured : _tryParseToolJson(data.result || '')
+              if (parsed) {
+                const cols = parsed.columns as string[] | undefined
+                const rows = parsed.rows as unknown[][] | undefined
+                get().addProcessStep({
+                  id: 'sql-' + Date.now(),
+                  type: 'sql_result',
+                  title: `查询结果: ${parsed.total_rows ?? '?'} 行`,
+                  status: 'success',
+                  startTime: endTime,
+                  endTime,
+                  data: {
+                    rowCount: parsed.total_rows,
+                    executionMs: parsed.execution_ms,
+                    preview: _rowsToRecords(cols, rows?.slice(0, 5)),
+                  },
+                })
+              }
+            }
+
+            if (data.name === 'recommend_chart') {
+              try {
+                const raw = structured?.type === 'chart_config'
+                  ? structured
+                  : JSON.parse(data.result || '{}')
+                chartConfig = _mapChartConfig(raw as Record<string, unknown>)
+                get().addProcessStep({
+                  id: 'chart-' + Date.now(),
+                  type: 'chart_config',
+                  title: `图表推荐: ${(raw as Record<string, unknown>).type || (raw as Record<string, unknown>).chartType || 'table'}`,
+                  status: 'success',
+                  startTime: endTime,
+                  endTime,
+                  data: { chartType: (raw as Record<string, unknown>).type || (raw as Record<string, unknown>).chartType, recommended: true },
+                })
+              } catch { /* ignore parse error */ }
             }
           },
           onReasoning: (chunk) =>
@@ -316,6 +381,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         memories: recalledMemories.length > 0 ? recalledMemories : undefined,
         ragSources: ragSources.length > 0 ? ragSources : undefined,
         toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+        chartConfig,
         model: selectedModel,
         createdAt: new Date().toISOString(),
       }
@@ -395,3 +461,52 @@ export const useChatStore = create<ChatState>((set, get) => ({
     get().sendMessage(userMsg.content)
   },
 }))
+
+
+function _tryParseToolJson(text: string): Record<string, unknown> | null {
+  const jsonStart = text.indexOf('{')
+  if (jsonStart < 0) return null
+  try {
+    return JSON.parse(text.slice(jsonStart))
+  } catch {
+    return null
+  }
+}
+
+function _rowsToRecords(
+  columns: string[] | undefined,
+  rows: unknown[][] | undefined,
+): Record<string, unknown>[] | undefined {
+  if (!columns || !rows) return undefined
+  return rows.map((row) => {
+    const obj: Record<string, unknown> = {}
+    columns.forEach((col, i) => { obj[col] = (row as unknown[])[i] ?? null })
+    return obj
+  })
+}
+
+function _mapChartConfig(raw: Record<string, unknown>): ChartConfig {
+  const chartType = (raw.type || raw.chartType || 'table') as ChartConfig['chartType']
+  const data = (raw.data as Record<string, unknown>[]) || []
+
+  const config: ChartConfig = { chartType, data }
+  if (raw.title) config.title = String(raw.title)
+
+  if (raw.xField) config.xAxis = { field: String(raw.xField) }
+  if (raw.xAxis && typeof raw.xAxis === 'object') config.xAxis = raw.xAxis as ChartConfig['xAxis']
+
+  if (raw.yFields && Array.isArray(raw.yFields)) {
+    config.yAxis = { field: (raw.yFields as string[])[0] }
+    config.series = (raw.yFields as string[]).map((f) => ({ field: f }))
+  }
+  if (raw.yAxis && typeof raw.yAxis === 'object') config.yAxis = raw.yAxis as ChartConfig['yAxis']
+
+  if (raw.series && Array.isArray(raw.series)) {
+    config.series = raw.series as ChartConfig['series']
+  }
+
+  if (raw.nameField) config.xAxis = { field: String(raw.nameField) }
+  if (raw.valueField) config.yAxis = { field: String(raw.valueField) }
+
+  return config
+}

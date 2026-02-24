@@ -70,18 +70,11 @@ export default function FileUpload({ open, onClose }: FileUploadProps) {
     for (const qf of queued) {
       setFiles((prev) => prev.map((f) => (f.id === qf.id ? { ...f, status: 'uploading', progress: 0 } : f)))
 
-      const interval = setInterval(() => {
-        setFiles((prev) =>
-          prev.map((f) => (f.id === qf.id && f.progress < 90 ? { ...f, progress: f.progress + 15 } : f)),
-        )
-      }, 300)
-
       try {
         await uploadFile(qf.file)
-        clearInterval(interval)
         setFiles((prev) => prev.map((f) => (f.id === qf.id ? { ...f, status: 'done', progress: 100 } : f)))
-      } catch {
-        clearInterval(interval)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : '上传失败')
         setFiles((prev) => prev.map((f) => (f.id === qf.id ? { ...f, status: 'error' } : f)))
       }
     }

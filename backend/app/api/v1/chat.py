@@ -283,6 +283,34 @@ def _sse(data: dict) -> str:
     return f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
+def _extract_structured_data(tool_name: str, result_text: str) -> dict | None:
+    """Extract structured JSON from tool results for frontend rendering."""
+    if tool_name == "execute_sql":
+        idx = result_text.find("{")
+        if idx >= 0:
+            try:
+                parsed = json.loads(result_text[idx:])
+                return {
+                    "type": "sql_result",
+                    "columns": parsed.get("columns", []),
+                    "rows": parsed.get("rows", [])[:50],
+                    "total_rows": parsed.get("total_rows", 0),
+                    "execution_ms": parsed.get("execution_ms", 0),
+                    "truncated": parsed.get("truncated", False),
+                }
+            except json.JSONDecodeError:
+                pass
+    elif tool_name == "recommend_chart":
+        try:
+            parsed = json.loads(result_text)
+            return {"type": "chart_config", **parsed}
+        except json.JSONDecodeError:
+            pass
+    elif tool_name in ("inspect_tables", "inspect_table_schema"):
+        return {"type": "schema_info", "text": result_text[:4000]}
+    return None
+
+
 @router.post("/chat")
 async def chat_stream(
     request: ChatRequest,
@@ -524,16 +552,18 @@ async def chat_stream(
 
                         # SSE: tool_result
                         tc_status = "success" if success else "error"
-                        yield _sse({
-                            "type": "tool_result",
-                            "data": {
-                                "id": tc_id,
-                                "name": tc_name,
-                                "status": tc_status,
-                                "result": result_text[:2000] if success else None,
-                                "error": result_text[:500] if not success else None,
-                            },
-                        })
+                        sse_payload: dict = {
+                            "id": tc_id,
+                            "name": tc_name,
+                            "status": tc_status,
+                            "result": result_text[:8000] if success else None,
+                            "error": result_text[:500] if not success else None,
+                        }
+                        if success:
+                            structured = _extract_structured_data(tc_name, result_text)
+                            if structured:
+                                sse_payload["structured_data"] = structured
+                        yield _sse({"type": "tool_result", "data": sse_payload})
 
                         # 收集 tool_call 到 metadata
                         _meta_tool_calls.append({

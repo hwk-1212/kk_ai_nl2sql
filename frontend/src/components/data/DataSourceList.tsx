@@ -49,10 +49,10 @@ export default function DataSourceList() {
     ds.originalFilename.toLowerCase().includes(search.toLowerCase()),
   )
 
-  const handleDelete = (id: string, e: React.MouseEvent) => {
+  const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation()
     if (deleteConfirm === id) {
-      deleteDataSource(id)
+      await deleteDataSource(id)
       setDeleteConfirm(null)
     } else {
       setDeleteConfirm(id)

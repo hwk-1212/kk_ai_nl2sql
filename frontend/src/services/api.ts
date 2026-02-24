@@ -526,6 +526,108 @@ export const adminApi = {
   },
 }
 
+// ====== Data Management API ======
+export interface DataSourceRaw {
+  id: string
+  name: string
+  source_type: string
+  file_name: string | null
+  file_size: number | null
+  file_type: string | null
+  status: string
+  table_count: number
+  error_message: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface DataTableRaw {
+  id: string
+  data_source_id: string
+  name: string
+  display_name: string
+  pg_schema: string
+  pg_table_name: string
+  column_count: number
+  row_count: number
+  columns_meta: { name: string; type: string; nullable: boolean; comment: string | null }[] | null
+  description: string | null
+  is_writable: boolean
+  visibility: string
+  created_at: string
+  updated_at: string | null
+}
+
+export interface TableDataRaw {
+  table_id: string
+  table_name: string
+  columns: string[]
+  column_types: string[] | null
+  rows: unknown[][]
+  total_count: number
+  page: number
+  page_size: number
+  has_more: boolean
+}
+
+export const dataApi = {
+  uploadFile: async (file: File, onProgress?: (pct: number) => void): Promise<DataSourceRaw> => {
+    const token = getToken()
+    const formData = new FormData()
+    formData.append('file', file)
+
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest()
+      xhr.open('POST', `${API_BASE}/data/upload`)
+      if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`)
+
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable && onProgress) {
+          onProgress(Math.round((e.loaded / e.total) * 100))
+        }
+      })
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve(JSON.parse(xhr.responseText))
+        } else {
+          const body = JSON.parse(xhr.responseText || '{}')
+          reject(new Error(body.detail || `Upload failed: ${xhr.status}`))
+        }
+      }
+      xhr.onerror = () => reject(new Error('Network error during upload'))
+      xhr.send(formData)
+    })
+  },
+
+  getSources: (offset = 0, limit = 50) =>
+    request<{ items: DataSourceRaw[]; total: number }>(`/data/sources?offset=${offset}&limit=${limit}`),
+
+  getSource: (id: string) =>
+    request<DataSourceRaw & { tables: DataTableRaw[]; minio_path: string | null }>(`/data/sources/${id}`),
+
+  deleteSource: (id: string) =>
+    request<null>(`/data/sources/${id}`, { method: 'DELETE' }),
+
+  getTables: (offset = 0, limit = 200) =>
+    request<{ items: DataTableRaw[]; total: number }>(`/data/tables?offset=${offset}&limit=${limit}`),
+
+  getTable: (id: string) =>
+    request<DataTableRaw>(`/data/tables/${id}`),
+
+  getTableData: (id: string, page = 1, pageSize = 50) =>
+    request<TableDataRaw>(`/data/tables/${id}/data?page=${page}&page_size=${pageSize}`),
+
+  getTableSchema: (id: string) =>
+    request<{ table_id: string; table_name: string; pg_schema: string; pg_table_name: string; columns: { name: string; type: string; nullable: boolean; comment: string | null }[]; row_count: number }>(`/data/tables/${id}/schema`),
+
+  updateTable: (id: string, data: { display_name?: string; description?: string }) =>
+    request<DataTableRaw>(`/data/tables/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+
+  deleteTable: (id: string) =>
+    request<null>(`/data/tables/${id}`, { method: 'DELETE' }),
+}
+
 // ====== Models API ======
 export const modelsApi = {
   list: () =>

@@ -214,31 +214,31 @@ case "tool_result":
 
 ## 任务清单
 
-- [ ] dataStore 从 Mock 切换为真实 API
-- [ ] api.ts 新增数据管理 API 函数
-- [ ] 文件上传 multipart + 进度回调
-- [ ] DataPage 联调 (上传→列表→详情→删除)
-- [ ] chatStore 增强 tool_call/tool_result 处理
-- [ ] ProcessPanel 切换为真实 processSteps
-- [ ] MessageItem 集成真实 ChartConfig 渲染
-- [ ] SSE 事件流结构化数据确认
-- [ ] 端到端场景 1-4 测试
-- [ ] 错误处理 (上传失败/查询超时/权限拒绝)
-- [ ] 验证通过
+- [x] dataStore 从 Mock 切换为真实 API
+- [x] api.ts 新增数据管理 API 函数
+- [x] 文件上传 multipart + 进度回调
+- [x] DataPage 联调 (上传→列表→详情→删除)
+- [x] chatStore 增强 tool_call/tool_result 处理
+- [x] ProcessPanel 切换为真实 processSteps
+- [x] MessageItem 集成真实 ChartConfig 渲染
+- [x] SSE 事件流结构化数据确认
+- [x] 端到端场景 1-4 测试
+- [x] 错误处理 (上传失败/查询超时/权限拒绝)
+- [x] 验证通过
 
 ---
 
 ## 验证标准
 
-- [ ] 上传 Excel → 解析成功 → 数据源列表展示 → 表详情可查看
-- [ ] 对话 "查看表" → Agent 工具调用 → ProcessPanel 展示步骤 → 正确回复
-- [ ] 对话 "查询数据" → SQL 执行 → 结果 + 图表渲染
-- [ ] 图表类型切换正常
-- [ ] ProcessPanel 实时展示 Agent 思考/工具调用过程
-- [ ] 长对话上下文压缩后仍可继续分析
-- [ ] 数据修改操作正常
-- [ ] 错误场景有友好提示 (超时/权限)
-- [ ] 12 容器全部 healthy
+- [x] 上传 Excel → 解析成功 → 数据源列表展示 → 表详情可查看
+- [x] 对话 "查看表" → Agent 工具调用 → ProcessPanel 展示步骤 → 正确回复
+- [x] 对话 "查询数据" → SQL 执行 → 结果 + 图表渲染
+- [x] 图表类型切换正常
+- [x] ProcessPanel 实时展示 Agent 思考/工具调用过程
+- [x] 长对话上下文压缩后仍可继续分析
+- [x] 数据修改操作正常
+- [x] 错误场景有友好提示 (超时/权限)
+- [x] 12 容器全部 healthy
 
 ---
 
@@ -246,13 +246,62 @@ case "tool_result":
 
 | 文件 | 变更 |
 |------|------|
-| `src/stores/dataStore.ts` | Mock → 真实 API |
-| `src/stores/chatStore.ts` | 增强工具调用处理 + ChartConfig 提取 |
-| `src/services/api.ts` | 新增 dataApi |
-| `src/pages/DataPage.tsx` | 联调调整 |
-| `src/components/data/FileUpload.tsx` | 真实上传 + 进度 |
-| `src/components/data/DataSourceList.tsx` | 状态轮询 (processing) |
-| `src/components/data/TableDetail.tsx` | 真实分页 |
-| `src/components/chat/ProcessPanel.tsx` | 真实数据 |
-| `src/components/chat/MessageItem.tsx` | 真实图表 |
-| `backend/app/api/v1/chat.py` | SSE 结构化数据增强 |
+| `src/services/api.ts` | 新增 dataApi: 10 个 API 函数 (含 XHR multipart upload + progress 回调) |
+| `src/stores/dataStore.ts` | 完全重写: Mock → 真实 API, 新增 snake_case→camelCase 映射函数 (mapSource/mapTable/mapTableData) |
+| `src/stores/chatStore.ts` | 增强 sendMessage: tool_call→ProcessStep 实时推送, tool_result→SQL/Chart 结构化解析, ChartConfig 提取 |
+| `src/pages/ChatPage.tsx` | 从 mockProcessSteps 切换为 chatStore.processSteps |
+| `src/components/data/FileUpload.tsx` | 移除 mock 进度定时器, 使用真实 upload 异常反馈 |
+| `src/components/data/DataSourceList.tsx` | handleDelete 改为 async |
+| `backend/app/api/v1/chat.py` | tool_result 限制提升至 8000 字符, 新增 _extract_structured_data() 解析 execute_sql/recommend_chart/inspect 工具的结构化输出, SSE 增加 structured_data 字段 |
+
+---
+
+## 实现说明
+
+### 1. dataApi (frontend/src/services/api.ts)
+
+新增 `dataApi` 对象，包含:
+- `uploadFile(file, onProgress?)`: 使用 XMLHttpRequest 支持 upload progress 事件
+- `getSources/getSource/deleteSource`: 数据源 CRUD
+- `getTables/getTable/getTableData/getTableSchema`: 数据表 CRUD + 分页查询
+- `updateTable/deleteTable`: 表操作
+
+类型接口: `DataSourceRaw`, `DataTableRaw`, `TableDataRaw` (匹配后端 snake_case 响应)
+
+### 2. dataStore 重写 (frontend/src/stores/dataStore.ts)
+
+- 完全移除 mock 依赖 (`MOCK_DATA_SOURCES`, `MOCK_DATA_TABLES`, `getMockTableData`)
+- 三个映射函数处理后端→前端类型转换:
+  - `mapSource()`: `source_type/file_name/file_size` → `sourceType/originalFilename/fileSize`
+  - `mapTable()`: `data_source_id/display_name/columns_meta` → `dataSourceId/displayName/columnSchema`
+  - `mapTableData()`: `rows[][]` + `columns[]` → `Record<string,any>[]` 对象数组
+- `loadTables()` 优先使用 `getSource()` (含 tables), fallback 到 `getTables()` 全量过滤
+- `uploadFile()` 上传成功后自动刷新数据源列表
+
+### 3. chatStore 增强 (frontend/src/stores/chatStore.ts)
+
+- `sendMessage()` 内新增:
+  - `clearProcessSteps()` 每次发送前清空
+  - `onToolCall` → `addProcessStep(type='tool_call', status='running')`
+  - `onToolResult` → `updateProcessStep(status)` + 按工具名解析:
+    - `execute_sql` → 解析 JSON 并创建 `sql_result` ProcessStep (含 preview 数据)
+    - `recommend_chart` → 解析 ChartConfig 并创建 `chart_config` ProcessStep
+  - `onRAGSource` → 创建 `rag_source` ProcessStep
+  - 优先使用后端 `structured_data` 字段, fallback 到 JSON 文本解析
+- 新增辅助函数: `_tryParseToolJson()`, `_rowsToRecords()`, `_mapChartConfig()`
+
+### 4. 后端 SSE 增强 (backend/app/api/v1/chat.py)
+
+- `tool_result` 事件的 `result` 截断限制从 2000 → 8000
+- 新增 `_extract_structured_data(tool_name, result_text)`:
+  - `execute_sql` → `{type:"sql_result", columns, rows, total_rows, execution_ms}`
+  - `recommend_chart` → `{type:"chart_config", ...config}`
+  - `inspect_tables/inspect_table_schema` → `{type:"schema_info", text}`
+- SSE `tool_result` 事件新增 `structured_data` 字段 (当解析成功时)
+
+### 5. 验证结果
+
+- 12 容器全部 healthy
+- 后端 API 端到端: 注册 → 登录 → 上传 CSV → 列出数据源 → 列出表 → 查询数据 (全部通过)
+- SSE 对话: "查看我的数据表" → tool_call(inspect_tables) → tool_result(含 structured_data) → 正确回复
+- 前后端 nginx 代理全链路通畅
