@@ -212,3 +212,12 @@ result = await registry.execute_builtin(tool_name, arguments, context=context)
 3. **execute_sql 执行路径**: SecurityChecker → LIMIT 强制 → 表归属验证 → IsolatedSQLExecutor (search_path + timeout)
 4. **recommend_chart 意图覆盖**: 用户 query_intent 中的关键词 (饼/折线/散点) 优先于自动规则推荐
 5. **Agent 表现**: DeepSeek-chat 能自主决定调用链 (inspect → schema → query → chart)，单次对话最多进行 5 轮工具调用
+
+---
+
+## 代码审查修复 (2026-02-24)
+
+| # | 严重度 | 文件 | 问题 | 修复 |
+|---|--------|------|------|------|
+| 1 | 🔴安全 | `sql_checker.py` | `";" in sql_stripped` 误拦字符串内分号 (如 `WHERE name = 'a;b'`) | 改用 `sqlparse.parse()` 判断实际语句数量，仅多条真实语句才拦截 |
+| 2 | 🟡功能 | `sql_checker.py` | `extract_table_names` 仅排除 4 个关键字，`DEFAULT/AS/ON/AND` 等被误识别为表名 | 扩展为 28 个 SQL 关键字的 `frozenset` |

@@ -370,3 +370,11 @@ celery_app.conf.beat_schedule.update({
 
 10. **Celery Beat 配置**
     - check-scheduled-reports: 每 5 分钟 (crontab minute=*/5)
+
+---
+
+## 代码审查修复 (2026-02-24)
+
+| # | 严重度 | 文件 | 问题 | 修复 |
+|---|--------|------|------|------|
+| 1 | 🔴严重 | `generator.py` | `_call_llm` 使用 `model=` 参数但 llm_router.stream 接受 `model_id=`；chunk 用 `.get("content")` 但流返回对象属性 `chunk.type` / `chunk.data` | 改为 `model_id=GENERATE_MODEL`，chunk 取值改为 `chunk.type == "content" and chunk.data` |

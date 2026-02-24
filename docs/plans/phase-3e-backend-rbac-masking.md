@@ -251,3 +251,14 @@ async def execute_sql_tool(arguments, user, db):
 | `app/core/tools/builtin/data_query.py` | 集成权限检查 + 脱敏 |
 | `app/core/tools/builtin/data_modify.py` | 集成权限检查 |
 | `app/main.py` | 初始化 DataAccessControl + 注册路由 |
+
+---
+
+## 代码审查修复 (2026-02-24)
+
+| # | 严重度 | 文件 | 问题 | 修复 |
+|---|--------|------|------|------|
+| 1 | 🔴安全 | `data_access.py` | 租户过滤 `DataRole.tenant_id == user.tenant_id if user.tenant_id else None` 当 tenant_id 为空时 `None` 被 SQLAlchemy 忽略，导致跨租户数据泄露 | 抽取 `_get_user_role_ids()` 方法，用 `DataRole.tenant_id.is_(None)` 正确处理无租户场景 |
+| 2 | 🔴严重 | `data_access.py` | `apply_column_masking` 假设 rows 为 `list[dict]`，实际为 `list[list]`，运行时 `AttributeError` | 改为按列索引处理，正确过滤 hidden 列并应用脱敏 |
+| 3 | 🔴严重 | `data_access.py` | `rewrite_sql_with_filters` 简单拼接将 WHERE 子句追加到 `ORDER BY`/`LIMIT` 之后，生成非法 SQL | 用正则识别 GROUP BY/HAVING/ORDER BY/LIMIT 等子句位置，在正确位置插入条件 |
+| 4 | 🟠健壮 | `masking.py` | `email_mask` 未对输入做 `str()` 转换，非字符串值触发 `TypeError` | 添加 `str(v)` 显式类型转换 |

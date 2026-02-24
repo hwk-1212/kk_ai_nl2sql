@@ -275,3 +275,12 @@ collection_name = "kk_metrics"
 |------|------|
 | `app/main.py` | 初始化 SemanticLayer + 创建 Milvus collection + 注册工具 |
 | `app/api/v1/chat.py` | System Prompt 增加 lookup_metrics 说明 |
+
+---
+
+## 代码审查修复 (2026-02-24)
+
+| # | 严重度 | 文件 | 问题 | 修复 |
+|---|--------|------|------|------|
+| 1 | 🔴严重 | `metrics.py` | `GET /search`、`GET /dimensions`、`GET /terms` 定义在 `GET /{metric_id}` 之后，被路径参数截获返回 422 | 将 `/search`、CRUD 子资源路由移到 `/{metric_id}` 之前注册 |
+| 2 | 🟡功能 | `layer.py` | Metric 和 BusinessTerm 在 Milvus 中均存储 `metric_id`，搜索返回重复指标 | 增加 `seen_metric_ids` 集合去重，每个指标只返回最高分结果 |

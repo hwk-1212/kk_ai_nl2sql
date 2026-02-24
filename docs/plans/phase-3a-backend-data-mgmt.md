@@ -300,3 +300,13 @@ kk-nl2sql-files/
 3. **批量插入**: 每 500 行一批, 避免单次 INSERT 过大
 4. **MinIO 异步**: `asyncio.create_task` 非阻塞备份, 失败不影响上传结果
 5. **ORM lazy load**: DataSourceDetailResponse 手动构造, 避免 greenlet 错误
+
+---
+
+## 代码审查修复 (2026-02-24)
+
+| # | 严重度 | 文件 | 问题 | 修复 |
+|---|--------|------|------|------|
+| 1 | 🔴严重 | `parsers.py` | `sanitize_table_name` 只允许 `[a-z0-9_]`，中文文件名全部变为 `unnamed` | 正则增加 `\u4e00-\u9fff` 中文范围，与 `sanitize_column_name` 一致 |
+| 2 | 🟡性能 | `manager.py` | `_insert_data` 逐行 `conn.execute()` 500 次 DB 往返 | 改为 `conn.execute(sa_text(insert_sql), params_list)` 批量提交 |
+| 3 | 🟠边界 | `manager.py` | `upload_and_parse` 的 `finally` 块引用 `tmp_path`，若 `NamedTemporaryFile` 异常则 `UnboundLocalError` | 在 `try` 前声明 `tmp_path: str | None = None`，`finally` 加 `if tmp_path` 判断 |

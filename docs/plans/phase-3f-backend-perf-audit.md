@@ -402,3 +402,12 @@ celery_app.conf.beat_schedule = {
 8. **初始化** (`backend/app/main.py`)
    - QueryCache (Redis) + SchemaCache (Redis) + DataAuditor 在 lifespan 中初始化
    - ALTER TABLE 语句确保新字段存在
+
+---
+
+## 代码审查修复 (2026-02-24)
+
+| # | 严重度 | 文件 | 问题 | 修复 |
+|---|--------|------|------|------|
+| 1 | 🔴严重 | `query_cache.py` | `invalidate_user` 在 L1 中用 `user_id in k` 搜索 SHA256 hash 永远不匹配；L2 用 `qcache:*` 扫全量 key 误删其他用户缓存 | 1) cache_key 格式加入 `user_id[:8]` 前缀 2) 新增 `_user_keys` 字典追踪 L1 key 3) Redis SCAN 用 `qcache:{uid}:*` 精准匹配 |
+| 2 | 🟡集成 | `data_query.py` | `query_cache.set()` 未传 `user_id`，导致 `_user_keys` 追踪失效 | 调用时增加 `user_id=str(user.id)` 参数 |
