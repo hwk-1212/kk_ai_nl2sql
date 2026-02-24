@@ -8,6 +8,7 @@ from app.api.v1 import auth, conversations, chat, models as models_api
 from app.api.v1 import knowledge, mcp as mcp_api, tools as tools_api
 from app.api.v1 import admin as admin_api
 from app.api.v1 import data as data_api, metrics as metrics_api, reports as reports_api, data_permissions as data_perm_api
+from app.api.v1 import data_audit as data_audit_api
 from app.core.llm.router import llm_router
 from app.core.llm.deepseek import DeepSeekProvider
 from app.core.llm.qwen import QwenProvider
@@ -25,6 +26,7 @@ from app.core.tools.builtin import (
     register_execute_sql,
     register_modify_user_data,
     register_chart_recommend,
+    register_lookup_metrics,
 )
 from app.core.data.manager import DataManager
 from app.core.data.isolated_executor import IsolatedSQLExecutor
@@ -32,14 +34,9 @@ from app.core.context.token_counter import TokenCounter
 from app.core.context.summarizer import ContextSummarizer
 from app.core.context.manager import ContextManager
 from app.core.semantic.layer import SemanticLayer
-from app.core.tools.builtin import (
-    register_web_search,
-    register_schema_tools,
-    register_execute_sql,
-    register_modify_user_data,
-    register_chart_recommend,
-    register_lookup_metrics,
-)
+from app.core.cache.query_cache import QueryCache
+from app.core.cache.schema_cache import SchemaCache
+from app.core.audit.data_auditor import DataAuditor
 from app.db.minio_client import minio_client as global_minio_client
 
 from app.core.logging import setup_logging
@@ -130,20 +127,52 @@ async def lifespan(app: FastAPI):
             except Exception:
                 pass
 
+        # Phase 3F: 审计日志新增字段
+        for stmt in [
+            "ALTER TABLE data_audit_logs ADD COLUMN IF NOT EXISTS conversation_id UUID",
+            "ALTER TABLE data_audit_logs ADD COLUMN IF NOT EXISTS data_table_id UUID",
+            "ALTER TABLE data_audit_logs ADD COLUMN IF NOT EXISTS sql_hash VARCHAR(64)",
+            "ALTER TABLE data_audit_logs ADD COLUMN IF NOT EXISTS affected_rows INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE data_audit_logs ADD COLUMN IF NOT EXISTS result_row_count INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE data_audit_logs ADD COLUMN IF NOT EXISTS before_snapshot JSONB",
+            "ALTER TABLE data_audit_logs ADD COLUMN IF NOT EXISTS after_snapshot JSONB",
+            "ALTER TABLE data_audit_logs ADD COLUMN IF NOT EXISTS client_ip VARCHAR(45)",
+            "ALTER TABLE data_audit_logs ADD COLUMN IF NOT EXISTS user_agent VARCHAR(500)",
+        ]:
+            try:
+                await conn.execute(sa_text(stmt))
+            except Exception:
+                pass
+
+        # Phase 3G: 报告模型新增字段
+        for stmt in [
+            "ALTER TABLE reports ADD COLUMN IF NOT EXISTS data_config JSONB",
+            "ALTER TABLE reports ADD COLUMN IF NOT EXISTS charts JSONB",
+            "ALTER TABLE reports ADD COLUMN IF NOT EXISTS minio_path VARCHAR(1000)",
+            "ALTER TABLE reports ADD COLUMN IF NOT EXISTS error_message TEXT",
+            "ALTER TABLE reports ADD COLUMN IF NOT EXISTS schedule_id UUID REFERENCES report_schedules(id) ON DELETE SET NULL",
+            "ALTER TABLE report_templates ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES users(id) ON DELETE SET NULL",
+            "ALTER TABLE report_templates ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES tenants(id) ON DELETE SET NULL",
+            "ALTER TABLE report_templates ALTER COLUMN template_content TYPE TEXT USING template_content::TEXT",
+            "ALTER TABLE report_templates ADD COLUMN IF NOT EXISTS data_config JSONB",
+            "ALTER TABLE report_templates ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()",
+            "ALTER TABLE report_schedules ADD COLUMN IF NOT EXISTS name VARCHAR(255) NOT NULL DEFAULT ''",
+            "ALTER TABLE report_schedules ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES tenants(id) ON DELETE SET NULL",
+            "ALTER TABLE report_schedules ADD COLUMN IF NOT EXISTS data_config JSONB",
+        ]:
+            try:
+                await conn.execute(sa_text(stmt))
+            except Exception:
+                pass
+
         # Phase 7: 关键查询索引
         index_stmts = [
-            # 会话列表 (按用户 + 最近更新排序)
             "CREATE INDEX IF NOT EXISTS ix_conversations_user_updated ON conversations (user_id, updated_at DESC)",
             "CREATE INDEX IF NOT EXISTS ix_conversations_tenant_updated ON conversations (tenant_id, updated_at DESC)",
-            # 消息列表 (会话内按时间排序)
             "CREATE INDEX IF NOT EXISTS ix_messages_conv_created ON messages (conversation_id, created_at)",
-            # 用量记录 (conversation_id 外键补索引)
             "CREATE INDEX IF NOT EXISTS ix_usage_records_conv ON usage_records (conversation_id)",
-            # 审计日志 (按用户+时间)
             "CREATE INDEX IF NOT EXISTS ix_audit_logs_user_created ON audit_logs (user_id, created_at DESC)",
-            # 文档状态筛选
             "CREATE INDEX IF NOT EXISTS ix_documents_status ON documents (status)",
-            # 用户创建时间
             "CREATE INDEX IF NOT EXISTS ix_users_created ON users (created_at DESC)",
         ]
         for stmt in index_stmts:
@@ -163,7 +192,6 @@ async def lifespan(app: FastAPI):
             await db.commit()
             await db.refresh(default_tenant)
             logger.info(f"✅ Default tenant created: {default_tenant.id}")
-        # 分配无租户的用户到默认租户
         await db.execute(
             sa_text("UPDATE users SET tenant_id = :tid WHERE tenant_id IS NULL"),
             {"tid": default_tenant.id},
@@ -255,7 +283,6 @@ async def lifespan(app: FastAPI):
         from app.core.semantic.layer import COLLECTION_NAME, EMBEDDING_DIM
         semantic_layer = SemanticLayer(embedder=embedder, vector_store=vector_store)
         app.state.semantic_layer = semantic_layer
-        # 创建 kk_metrics Milvus collection
         vector_store.create_collection(COLLECTION_NAME, dim=EMBEDDING_DIM)
         logger.info(f"✅ SemanticLayer initialized (collection={COLLECTION_NAME})")
     else:
@@ -273,6 +300,48 @@ async def lifespan(app: FastAPI):
     context_manager = ContextManager(token_counter, summarizer)
     app.state.context_manager = context_manager
     logger.info("✅ ContextManager initialized (compress_threshold=60%, keep_recent=6 rounds)")
+
+    # Phase 3F: 初始化缓存 + 审计
+    from app.db.redis import redis_client
+    app.state.query_cache = QueryCache(redis_client)
+    app.state.schema_cache = SchemaCache(redis_client)
+    app.state.data_auditor = DataAuditor()
+    logger.info("✅ QueryCache (L1+L2) + SchemaCache + DataAuditor initialized")
+
+    # Phase 3G: 初始化报告生成器
+    app.state.report_generator = None
+    try:
+        from app.core.report.generator import ReportGenerator
+        rg = ReportGenerator(llm_router=llm_router, executor=app.state.isolated_executor)
+        app.state.report_generator = rg
+        logger.info("✅ ReportGenerator initialized")
+    except Exception as e:
+        logger.warning("⚠️ ReportGenerator init failed: %s", e)
+
+    # Phase 3G: 预置系统报告模板
+    try:
+        from app.models.report_template import ReportTemplate as RT
+        async with async_session_maker() as db2:
+            existing = await db2.execute(select(RT).where(RT.is_system.is_(True)).limit(1))
+            if not existing.scalar_one_or_none():
+                system_templates = [
+                    RT(name="日报模板", description="按天统计关键指标，趋势对比", category="daily",
+                       template_content="# {{title}}\n\n## 概述\n\n## 关键指标\n\n## 趋势分析\n\n## 建议", is_system=True),
+                    RT(name="周报模板", description="按周汇总，环比分析", category="weekly",
+                       template_content="# {{title}}\n\n## 本周概况\n\n## 关键指标\n\n## 环比分析\n\n## 下周展望", is_system=True),
+                    RT(name="月报模板", description="月度总结 + 环比同比", category="monthly",
+                       template_content="# {{title}}\n\n## 月度总结\n\n## 关键指标\n\n## 环比同比\n\n## 趋势洞察\n\n## 建议", is_system=True),
+                    RT(name="自定义查询报告", description="自由配置查询和图表", category="custom",
+                       template_content="# {{title}}\n\n## 数据分析\n\n## 关键发现\n\n## 建议", is_system=True),
+                ]
+                for t in system_templates:
+                    db2.add(t)
+                await db2.commit()
+                logger.info("✅ System report templates created (4 templates)")
+            else:
+                logger.info("✅ System report templates already exist")
+    except Exception as e:
+        logger.warning("⚠️ System templates init: %s", e)
 
     yield
 
@@ -316,6 +385,7 @@ app.include_router(data_api.router, prefix="/api/v1", tags=["data"])
 app.include_router(metrics_api.router, prefix="/api/v1", tags=["metrics"])
 app.include_router(reports_api.router, prefix="/api/v1", tags=["reports"])
 app.include_router(data_perm_api.router, prefix="/api/v1", tags=["data-permissions"])
+app.include_router(data_audit_api.router, prefix="/api/v1", tags=["data-audit"])
 
 
 @app.get("/")

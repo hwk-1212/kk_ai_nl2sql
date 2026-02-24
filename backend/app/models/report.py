@@ -26,8 +26,15 @@ class Report(Base):
     template_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("report_templates.id", ondelete="SET NULL"), nullable=True
     )
+    data_config: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     sections: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    charts: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    minio_path: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    schedule_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("report_schedules.id", ondelete="SET NULL"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
         server_default=text("now()")

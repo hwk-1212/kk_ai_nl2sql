@@ -1,6 +1,4 @@
 """指标 / 维度 / 业务术语 Pydantic Schemas。
-
-TODO (Phase 3d): 补充完整字段校验
 """
 from __future__ import annotations
 import uuid

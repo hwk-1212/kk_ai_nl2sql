@@ -1,5 +1,7 @@
 # Phase 3-D: 后端 — 语义层 / 指标模块
 
+> **状态**: ✅ 已完成
+
 ## 目标
 
 实现业务指标、维度、术语映射的完整 CRUD 和语义检索能力。指标名称+描述写入 Milvus 向量库，Agent 通过 `lookup_metrics` 工具进行语义检索，找到最相关的指标定义以生成精确 SQL。
@@ -228,28 +230,28 @@ collection_name = "kk_metrics"
 
 ## 任务清单
 
-- [ ] 完善 Metric / Dimension / BusinessTerm ORM 模型
-- [ ] 实现 SemanticLayer (向量化 + 语义检索)
-- [ ] 创建 kk_metrics Milvus Collection
-- [ ] 实现 lookup_metrics Agent 工具
-- [ ] 注册 lookup_metrics 到 ToolRegistry
-- [ ] 实现指标管理 API (Metric/Dimension/Term CRUD + search)
-- [ ] 实现 Pydantic schemas
-- [ ] 创建/更新/删除指标时同步 Milvus
-- [ ] 验证通过
+- [x] 完善 Metric / Dimension / BusinessTerm ORM 模型
+- [x] 实现 SemanticLayer (向量化 + 语义检索)
+- [x] 创建 kk_metrics Milvus Collection
+- [x] 实现 lookup_metrics Agent 工具
+- [x] 注册 lookup_metrics 到 ToolRegistry
+- [x] 实现指标管理 API (Metric/Dimension/Term CRUD + search)
+- [x] 实现 Pydantic schemas
+- [x] 创建/更新/删除指标时同步 Milvus
+- [x] 验证通过
 
 ---
 
 ## 验证标准
 
-- [ ] 创建指标 → Milvus 中存在对应向量
-- [ ] 语义搜索 "营收" → 返回包含 "销售额" 的指标
-- [ ] 同义词映射: "营收" → "sales_amount" 正确关联
-- [ ] Agent 对话 "本月销售额是多少" → lookup_metrics → 返回销售额指标公式 → execute_sql
-- [ ] 指标 CRUD API 全部可用
-- [ ] 维度/术语 CRUD API 全部可用
-- [ ] 删除指标 → Milvus 向量同步删除
-- [ ] 租户隔离: A 租户搜索不到 B 租户指标
+- [x] 创建指标 → Milvus 中存在对应向量
+- [x] 语义搜索 "营收" → 返回包含 "销售额" 的指标
+- [x] 同义词映射: "营收" → "sales_amount" 正确关联
+- [x] Agent 对话 "本月销售额是多少" → lookup_metrics → 返回销售额指标公式 → execute_sql
+- [x] 指标 CRUD API 全部可用
+- [x] 维度/术语 CRUD API 全部可用
+- [x] 删除指标 → Milvus 向量同步删除
+- [x] 租户隔离: A 租户搜索不到 B 租户指标
 
 ---
 

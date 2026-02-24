@@ -1,4 +1,5 @@
 from celery import Celery
+from celery.schedules import crontab
 from app.config import get_settings
 
 settings = get_settings()
@@ -18,6 +19,12 @@ celery_app.conf.update(
     task_track_started=True,
     task_acks_late=True,
     worker_prefetch_multiplier=1,
+    beat_schedule={
+        "check-scheduled-reports": {
+            "task": "tasks.check_scheduled_reports",
+            "schedule": crontab(minute="*/5"),
+        },
+    },
 )
 
 celery_app.autodiscover_tasks(["app.tasks"])

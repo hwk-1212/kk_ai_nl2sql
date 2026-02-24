@@ -1,5 +1,7 @@
 # Phase 3-E: 后端 — RBAC 数据权限 + 脱敏
 
+> **状态**: ✅ 已完成
+
 ## 目标
 
 实现细粒度的数据访问权限控制：数据角色 (DataRole) 管理、表级/列级/行级权限、字段脱敏引擎，以及与 Agent 工具集的自动集成。
@@ -205,29 +207,29 @@ async def execute_sql_tool(arguments, user, db):
 
 ## 任务清单
 
-- [ ] 完善权限 ORM 模型 (DataRole, DataRoleAssignment, TablePermission, ColumnPermission, RowFilter)
-- [ ] 实现 DataAccessControl 引擎 (表/列/行三级检查)
-- [ ] 实现脱敏规则引擎 (7 种规则)
-- [ ] 集成到 execute_sql 工具 (权限检查 + 过滤注入 + 脱敏)
-- [ ] 集成到 modify_user_data 工具
-- [ ] 实现权限管理 API (10 个端点)
-- [ ] 表所有者默认全权限逻辑
-- [ ] 验证通过
+- [x] 完善权限 ORM 模型 (DataRole, DataRoleAssignment, TablePermission, ColumnPermission, RowFilter)
+- [x] 实现 DataAccessControl 引擎 (表/列/行三级检查)
+- [x] 实现脱敏规则引擎 (7 种规则)
+- [x] 集成到 execute_sql 工具 (权限检查 + 过滤注入 + 脱敏)
+- [x] 集成到 modify_user_data 工具
+- [x] 实现权限管理 API (10 个端点)
+- [x] 表所有者默认全权限逻辑
+- [x] 验证通过
 
 ---
 
 ## 验证标准
 
-- [ ] 表所有者可正常查询自己的表
-- [ ] 分配 read 权限的角色用户可查询
-- [ ] 无权限用户查询被拒绝 → 返回 "权限不足"
-- [ ] 行级过滤生效 (A 用户只看到自己部门数据)
-- [ ] 列脱敏生效 (phone: 138****1234, email: z***@xxx.com)
-- [ ] hidden 列在结果中不出现
-- [ ] 角色 CRUD API 正常
-- [ ] 权限配置 API 正常
-- [ ] Agent 对话中权限拦截正常 (工具返回权限不足提示)
-- [ ] 写操作权限控制正常
+- [x] 表所有者可正常查询自己的表
+- [x] 分配 read 权限的角色用户可查询
+- [x] 无权限用户查询被拒绝 → 返回 "权限不足"
+- [x] 行级过滤生效 (A 用户只看到自己部门数据)
+- [x] 列脱敏生效 (phone: 138****1234, email: z***@xxx.com)
+- [x] hidden 列在结果中不出现
+- [x] 角色 CRUD API 正常
+- [x] 权限配置 API 正常
+- [x] Agent 对话中权限拦截正常 (工具返回权限不足提示)
+- [x] 写操作权限控制正常
 
 ---
 

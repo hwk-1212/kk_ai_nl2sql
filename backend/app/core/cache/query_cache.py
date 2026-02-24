@@ -1,46 +1,161 @@
-"""查询结果缓存 — 相同 SQL 在 TTL 内直接返回缓存结果。
+"""查询结果缓存 — L1 内存 LRU + L2 Redis 双级缓存。
 
-基于 Redis，key 为 SQL hash + 用户维度。
-
-TODO (Phase 3f): 实现完整缓存逻辑
+L1: 内存 OrderedDict LRU，O(1) 查找，进程内有效。
+L2: Redis SETEX，跨进程共享，TTL 5 分钟。
+缓存 key = sha256(tenant_id:user_id:normalized_sql)。
 """
 from __future__ import annotations
+
 import hashlib
 import json
 import logging
+import time
+from collections import OrderedDict
+from typing import Any
+
+import sqlparse
 
 logger = logging.getLogger(__name__)
 
 
 class QueryCache:
-    """SQL 查询结果 Redis 缓存。"""
+    """SQL 查询结果多级缓存。"""
 
-    KEY_PREFIX = "qcache:"
-    DEFAULT_TTL = 300  # 5 minutes
+    L1_MAX_SIZE = 200
+    L2_TTL_SECONDS = 300
+    MAX_CACHEABLE_BYTES = 1_000_000  # 1 MB
 
-    def __init__(self, redis_client, ttl: int = DEFAULT_TTL):
-        self.redis = redis_client
-        self.ttl = ttl
+    def __init__(self, redis_client, *, l1_max: int = L1_MAX_SIZE, l2_ttl: int = L2_TTL_SECONDS):
+        self._redis = redis_client
+        self._l1: OrderedDict[str, tuple[float, dict]] = OrderedDict()
+        self._l1_max = l1_max
+        self._l2_ttl = l2_ttl
+        self._table_keys: dict[str, set[str]] = {}
+        self._hits = {"l1": 0, "l2": 0, "miss": 0}
+
+    # ── key generation ──────────────────────────────────────
 
     @staticmethod
-    def _key(user_id: str, sql: str) -> str:
-        h = hashlib.sha256(f"{user_id}:{sql}".encode()).hexdigest()[:24]
-        return f"qcache:{h}"
+    def cache_key(tenant_id: str, user_id: str, sql: str) -> str:
+        normalized = sqlparse.format(sql, strip_comments=True, reindent=True).strip()
+        raw = f"{tenant_id}:{user_id}:{normalized}"
+        return f"qcache:{hashlib.sha256(raw.encode()).hexdigest()[:24]}"
 
-    async def get(self, user_id: str, sql: str) -> dict | None:
-        """获取缓存的查询结果。
-        TODO (Phase 3f): 实现 Redis GET + JSON 反序列化
-        """
-        raise NotImplementedError("Phase 3f")
+    # ── read ────────────────────────────────────────────────
 
-    async def set(self, user_id: str, sql: str, result: dict) -> None:
-        """缓存查询结果。
-        TODO (Phase 3f): 实现 Redis SETEX
-        """
-        raise NotImplementedError("Phase 3f")
+    async def get(self, key: str) -> dict | None:
+        """L1 → L2 → None"""
+        # L1
+        entry = self._l1.get(key)
+        if entry is not None:
+            ts, data = entry
+            if time.time() - ts < self._l2_ttl:
+                self._l1.move_to_end(key)
+                self._hits["l1"] += 1
+                return data
+            else:
+                del self._l1[key]
+
+        # L2
+        try:
+            raw = await self._redis.get(key)
+        except Exception:
+            raw = None
+        if raw is not None:
+            try:
+                data = json.loads(raw)
+                self._l1_put(key, data)
+                self._hits["l2"] += 1
+                return data
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+        self._hits["miss"] += 1
+        return None
+
+    # ── write ───────────────────────────────────────────────
+
+    async def set(self, key: str, result: dict, table_names: list[str] | None = None) -> None:
+        payload = json.dumps(result, ensure_ascii=False, default=str)
+        if len(payload) > self.MAX_CACHEABLE_BYTES:
+            return
+
+        self._l1_put(key, result)
+
+        try:
+            await self._redis.setex(key, self._l2_ttl, payload)
+        except Exception as e:
+            logger.debug("QueryCache L2 set error: %s", e)
+
+        if table_names:
+            for tn in table_names:
+                self._table_keys.setdefault(tn, set()).add(key)
+
+    # ── invalidation ────────────────────────────────────────
+
+    async def invalidate_table(self, table_name: str) -> int:
+        """清除与某张表相关的所有缓存。"""
+        keys = self._table_keys.pop(table_name, set())
+        count = 0
+        for k in keys:
+            self._l1.pop(k, None)
+            try:
+                await self._redis.delete(k)
+            except Exception:
+                pass
+            count += 1
+        return count
 
     async def invalidate_user(self, user_id: str) -> int:
-        """清除用户的所有查询缓存。
-        TODO (Phase 3f): 实现 SCAN + DEL
-        """
-        raise NotImplementedError("Phase 3f")
+        """清除用户的全部查询缓存 (L2 scan + delete)。"""
+        count = 0
+        to_remove = [k for k in self._l1 if user_id in k]
+        for k in to_remove:
+            del self._l1[k]
+            count += 1
+
+        try:
+            cursor = "0"
+            while cursor:
+                cursor, keys = await self._redis.scan(cursor=cursor, match="qcache:*", count=100)
+                if keys:
+                    await self._redis.delete(*keys)
+                    count += len(keys)
+                if cursor == "0" or cursor == 0:
+                    break
+        except Exception as e:
+            logger.debug("QueryCache invalidate_user scan error: %s", e)
+        return count
+
+    async def invalidate_all(self) -> None:
+        """清除所有查询缓存。"""
+        self._l1.clear()
+        self._table_keys.clear()
+        try:
+            cursor = "0"
+            while cursor:
+                cursor, keys = await self._redis.scan(cursor=cursor, match="qcache:*", count=200)
+                if keys:
+                    await self._redis.delete(*keys)
+                if cursor == "0" or cursor == 0:
+                    break
+        except Exception:
+            pass
+
+    # ── stats ───────────────────────────────────────────────
+
+    def stats(self) -> dict:
+        return {
+            "l1_size": len(self._l1),
+            "l1_max": self._l1_max,
+            "hits": dict(self._hits),
+            "table_key_groups": len(self._table_keys),
+        }
+
+    # ── internal ────────────────────────────────────────────
+
+    def _l1_put(self, key: str, data: dict) -> None:
+        self._l1[key] = (time.time(), data)
+        self._l1.move_to_end(key)
+        while len(self._l1) > self._l1_max:
+            self._l1.popitem(last=False)

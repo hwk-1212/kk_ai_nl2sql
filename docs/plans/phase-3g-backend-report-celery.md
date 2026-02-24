@@ -1,5 +1,7 @@
 # Phase 3-G: 后端 — AI 报告 + 定时任务
 
+> **状态**: ✅ 已完成
+
 ## 目标
 
 实现 AI 驱动的报告生成引擎：手动生成和定时自动生成报告，使用 LLM 根据数据查询结果生成 Markdown 格式的分析报告，通过 Celery Beat 调度定时任务。
@@ -270,30 +272,30 @@ celery_app.conf.beat_schedule.update({
 
 ## 任务清单
 
-- [ ] 完善 Report / ReportTemplate / ReportSchedule ORM 模型
-- [ ] 实现 ReportGenerator (LLM 驱动生成 + 图表推荐)
-- [ ] 实现 ReportScheduler (Celery Beat 调度)
-- [ ] 实现 Celery 异步任务 (生成 + 定时 + 清理)
-- [ ] 实现报告管理 API (Report/Template/Schedule CRUD)
-- [ ] 系统预置模板初始化
-- [ ] 报告导出 (PDF/HTML → MinIO)
-- [ ] Pydantic schemas
-- [ ] 验证通过
+- [x] 完善 Report / ReportTemplate / ReportSchedule ORM 模型
+- [x] 实现 ReportGenerator (LLM 驱动生成 + 图表推荐)
+- [x] 实现 ReportScheduler (Celery Beat 调度)
+- [x] 实现 Celery 异步任务 (生成 + 定时 + 清理)
+- [x] 实现报告管理 API (Report/Template/Schedule CRUD)
+- [x] 系统预置模板初始化
+- [x] 报告导出 (PDF/HTML → MinIO)
+- [x] Pydantic schemas
+- [x] 验证通过
 
 ---
 
 ## 验证标准
 
-- [ ] 创建报告 → 触发生成 → 状态 generating → ready
-- [ ] 生成的报告内容为结构化 Markdown (含标题/概述/分析/建议)
-- [ ] 报告包含推荐图表配置
-- [ ] 模板 CRUD 正常
-- [ ] 定时任务创建 → 到点自动生成报告
-- [ ] 手动触发定时任务正常
-- [ ] 启用/停用 Toggle 生效
-- [ ] 报告导出 PDF 到 MinIO
-- [ ] Celery Worker 日志显示任务执行
-- [ ] 失败任务自动重试 (最多 3 次)
+- [x] 创建报告 → 触发生成 → 状态 generating → ready
+- [x] 生成的报告内容为结构化 Markdown (含标题/概述/分析/建议)
+- [x] 报告包含推荐图表配置
+- [x] 模板 CRUD 正常
+- [x] 定时任务创建 → 到点自动生成报告
+- [x] 手动触发定时任务正常
+- [x] 启用/停用 Toggle 生效
+- [x] 报告导出 PDF 到 MinIO
+- [x] Celery Worker 日志显示任务执行
+- [x] 失败任务自动重试 (最多 3 次)
 
 ---
 
@@ -318,3 +320,53 @@ celery_app.conf.beat_schedule.update({
 |------|------|
 | `app/main.py` | 初始化 ReportGenerator + 预置模板 + 注册路由 |
 | `app/tasks/__init__.py` | 注册报告相关 beat_schedule |
+
+---
+
+## 实现说明
+
+### 已完成功能
+
+1. **Report ORM** (`backend/app/models/report.py`)
+   - 新增字段: data_config (JSONB), charts (JSONB), minio_path, error_message, schedule_id (FK)
+
+2. **ReportTemplate ORM** (`backend/app/models/report_template.py`)
+   - 新增字段: user_id (FK), tenant_id (FK), template_content (Text), data_config (JSONB), updated_at
+   - template_content 从 JSONB 改为 Text
+
+3. **ReportSchedule ORM** (`backend/app/models/report_schedule.py`)
+   - 新增字段: name, tenant_id (FK), data_config (JSONB)
+   - template_id 改为可空
+
+4. **ReportGenerator** (`backend/app/core/report/generator.py`)
+   - generate(): data_config → 执行 SQL → 收集结果 → LLM 生成 Markdown → 图表推荐
+   - generate_from_query(): 单条 SQL → 简报
+   - 内置 SQL 安全检查 (SQLSecurityChecker)
+   - 自动图表推荐 (line/bar/scatter/table)
+
+5. **ReportScheduler** (`backend/app/core/report/scheduler.py`)
+   - create_schedule / update_schedule / toggle / mark_run
+   - get_due_schedules: 查询 next_run_at <= now() 且 is_active=True
+   - 使用 croniter 计算下次运行时间
+
+6. **Celery 任务** (`backend/app/tasks/report_tasks.py`)
+   - generate_report: 异步报告生成 (max_retries=3, countdown=30s)
+   - scheduled_report: 定时报告 (创建 Report → 触发 generate_report)
+   - check_scheduled_reports: 每 5 分钟检查到期任务 (Celery Beat)
+
+7. **报告管理 API** (`backend/app/api/v1/reports.py`)
+   - Report: GET /, POST /, GET /{id}, PUT /{id}, DELETE /{id}, POST /{id}/generate, GET /{id}/export
+   - Template: GET /templates/list, POST /templates, PUT /templates/{id}, DELETE /templates/{id}
+   - Schedule: GET /schedules/list, POST /schedules, PUT /schedules/{id}, DELETE /schedules/{id}, PATCH /schedules/{id}/toggle, POST /schedules/{id}/run
+
+8. **Pydantic Schemas** (`backend/app/schemas/report.py`)
+   - ReportCreate/Update/Response, GenerateReportRequest
+   - ReportTemplateCreate/Update/Response
+   - ReportScheduleCreate/Update/Response
+
+9. **系统预置模板**
+   - 日报 / 周报 / 月报 / 自定义查询报告 (4 个)
+   - 启动时自动创建 (如不存在)
+
+10. **Celery Beat 配置**
+    - check-scheduled-reports: 每 5 分钟 (crontab minute=*/5)

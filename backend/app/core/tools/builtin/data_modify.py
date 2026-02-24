@@ -6,10 +6,13 @@
   - 验证 table.user_id == user.id
   - 单次影响行数限制 1000 行
   - 事务 + savepoint 保护
+  - 审计日志记录
+  - 缓存失效
 """
 from __future__ import annotations
 
 import logging
+import time
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -69,7 +72,6 @@ async def _modify_user_data(arguments: dict, context: dict) -> str:
     if not target.is_writable:
         return f"表 '{table_name}' 为只读，不允许写操作。"
 
-    # 权限检查 (Phase 3E)
     from app.core.security.data_access import DataAccessControl
     dac = DataAccessControl()
     if not await dac.check_table_access(user, target, "write", db):
@@ -84,6 +86,7 @@ async def _modify_user_data(arguments: dict, context: dict) -> str:
 
     schema = executor.get_user_schema(user.tenant_id)
 
+    start_ts = time.monotonic()
     try:
         write_result = await executor.execute_write(
             tenant_schema=schema,
@@ -94,12 +97,18 @@ async def _modify_user_data(arguments: dict, context: dict) -> str:
             is_writable=target.is_writable,
         )
     except PermissionError as e:
+        elapsed = int((time.monotonic() - start_ts) * 1000)
+        await _audit_write(db, user, target, sql, 0, elapsed, "failed", str(e), request)
         return f"权限错误: {e}"
     except Exception as e:
+        elapsed = int((time.monotonic() - start_ts) * 1000)
+        await _audit_write(db, user, target, sql, 0, elapsed, "failed", str(e), request)
         error_msg = str(e)
         if "statement timeout" in error_msg.lower():
             return "操作超时: 请减少影响的数据量。"
         return f"SQL 执行错误: {error_msg[:500]}"
+
+    elapsed = int((time.monotonic() - start_ts) * 1000)
 
     if write_result.affected_rows > 1000:
         logger.warning(
@@ -107,10 +116,26 @@ async def _modify_user_data(arguments: dict, context: dict) -> str:
             user.id, table_name, write_result.affected_rows,
         )
 
+    # 缓存失效
+    query_cache = getattr(request.app.state, "query_cache", None) if request else None
+    if query_cache:
+        await query_cache.invalidate_table(target.pg_table_name)
+
+    await _audit_write(db, user, target, sql, write_result.affected_rows, elapsed, "success", None, request)
+
     return (
         f"操作成功: 影响 {write_result.affected_rows} 行 "
         f"(耗时 {write_result.execution_ms}ms)"
     )
+
+
+async def _audit_write(db, user, table, sql, affected_rows, execution_ms, status, error, request):
+    try:
+        auditor = getattr(request.app.state, "data_auditor", None) if request else None
+        if auditor:
+            await auditor.log_write(db, user, table, sql, affected_rows, execution_ms, status=status, error=error, request=request)
+    except Exception as e:
+        logger.debug("Audit log_write error: %s", e)
 
 
 def register_modify_user_data(registry: ToolRegistry):

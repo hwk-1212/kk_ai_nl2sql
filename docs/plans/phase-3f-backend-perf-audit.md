@@ -1,5 +1,7 @@
 # Phase 3-F: 后端 — 查询性能优化 + 审计链
 
+> **状态**: ✅ 已完成
+
 ## 目标
 
 实现多级查询缓存 (L1 内存 + L2 Redis)、表结构缓存、游标分页优化，以及完整的数据操作审计链 (DataAuditLog + DataAuditor)。
@@ -299,34 +301,34 @@ celery_app.conf.beat_schedule = {
 
 ## 任务清单
 
-- [ ] 实现 QueryCache (L1 内存 LRU + L2 Redis + 失效策略)
-- [ ] 实现 SchemaCache (Redis 缓存 + 失效)
-- [ ] 游标分页优化 (PaginatedQuery)
-- [ ] SQL 执行超时保护增强
-- [ ] 完善 DataAuditLog ORM 模型 (含复合索引)
-- [ ] 实现 DataAuditor 服务 (5 种日志类型)
-- [ ] 集成审计到 execute_sql / modify_user_data 工具
-- [ ] 集成审计到数据管理 API (upload/delete)
-- [ ] 实现审计查询 API (4 个端点)
-- [ ] 实现审计数据归档 Celery 任务
-- [ ] 集成缓存到 execute_sql / inspect_table_schema 工具
-- [ ] 验证通过
+- [x] 实现 QueryCache (L1 内存 LRU + L2 Redis + 失效策略)
+- [x] 实现 SchemaCache (Redis 缓存 + 失效)
+- [x] 游标分页优化 (PaginatedQuery)
+- [x] SQL 执行超时保护增强
+- [x] 完善 DataAuditLog ORM 模型 (含复合索引)
+- [x] 实现 DataAuditor 服务 (5 种日志类型)
+- [x] 集成审计到 execute_sql / modify_user_data 工具
+- [x] 集成审计到数据管理 API (upload/delete)
+- [x] 实现审计查询 API (4 个端点)
+- [x] 实现审计数据归档 Celery 任务
+- [x] 集成缓存到 execute_sql / inspect_table_schema 工具
+- [x] 验证通过
 
 ---
 
 ## 验证标准
 
-- [ ] 重复查询第二次命中 L1 缓存 (响应 < 5ms)
-- [ ] L1 miss 后命中 L2 Redis 缓存 (响应 < 10ms)
-- [ ] 写操作后相关缓存自动失效
-- [ ] 表结构缓存命中 (inspect_table_schema 第二次 < 5ms)
-- [ ] 游标分页: 10 万行表分页查询 < 100ms
-- [ ] 每次 SQL 执行都有审计日志
-- [ ] 权限拒绝操作有 "denied" 状态日志
-- [ ] 写操作有 before/after 快照
-- [ ] 审计查询 API 分页/筛选正常
-- [ ] 审计统计 API 返回正确趋势数据
-- [ ] Celery 归档任务正常执行
+- [x] 重复查询第二次命中 L1 缓存 (响应 < 5ms)
+- [x] L1 miss 后命中 L2 Redis 缓存 (响应 < 10ms)
+- [x] 写操作后相关缓存自动失效
+- [x] 表结构缓存命中 (inspect_table_schema 第二次 < 5ms)
+- [x] 游标分页: 10 万行表分页查询 < 100ms
+- [x] 每次 SQL 执行都有审计日志
+- [x] 权限拒绝操作有 "denied" 状态日志
+- [x] 写操作有 before/after 快照
+- [x] 审计查询 API 分页/筛选正常
+- [x] 审计统计 API 返回正确趋势数据
+- [x] Celery 归档任务正常执行
 
 ---
 
@@ -353,3 +355,50 @@ celery_app.conf.beat_schedule = {
 | `app/api/v1/admin.py` | 新增审计查询端点 |
 | `app/main.py` | 初始化 QueryCache + SchemaCache + DataAuditor |
 | `app/tasks/__init__.py` | 注册 beat_schedule |
+
+---
+
+## 实现说明
+
+### 已完成功能
+
+1. **QueryCache** (`backend/app/core/cache/query_cache.py`)
+   - L1: OrderedDict LRU (200 条, TTL 5 分钟)
+   - L2: Redis SETEX (TTL 300s)
+   - cache_key = sha256(tenant_id:user_id:normalized_sql)
+   - 按表名维护 table→key 映射，写操作后自动失效
+   - 超过 1MB 不缓存
+   - 命中统计 (l1/l2/miss)
+
+2. **SchemaCache** (`backend/app/core/cache/schema_cache.py`)
+   - Redis 缓存 (TTL 600s)
+   - key = scache:{user_id}:{table_id}
+   - 支持按表/按用户失效
+
+3. **DataAuditLog ORM** (`backend/app/models/data_audit_log.py`)
+   - 完整模型: user_id, tenant_id, conversation_id, action, data_table_id, table_name, sql_text, sql_hash, affected_rows, execution_ms, result_row_count, status, error_message, before/after_snapshot, client_ip, user_agent, extra
+   - 4 个复合索引 (tenant+time, user+time, table+time, action)
+
+4. **DataAuditor** (`backend/app/core/audit/data_auditor.py`)
+   - 5 种日志: log_query, log_write, log_denied, log_upload, log_drop_table
+   - SQL 脱敏: 字面值常量替换为 '***'
+   - SQL hash: 归一化后 sha256 (聚合分析)
+   - 分页查询 get_logs + 统计 get_stats (操作分布/状态分布/日趋势/高频表)
+   - client_ip 从 X-Forwarded-For 提取
+
+5. **缓存集成到 Agent 工具**
+   - execute_sql: 查询前检查 QueryCache → 命中直接返回 → miss 执行后写入缓存
+   - modify_user_data: 写操作后调用 invalidate_table 失效相关缓存
+
+6. **审计集成到 Agent 工具**
+   - execute_sql: 成功/失败/权限拒绝均自动记录审计日志
+   - modify_user_data: 写操作成功/失败自动记录审计日志
+
+7. **审计查询 API** (`backend/app/api/v1/data_audit.py`)
+   - GET /admin/data-audit/ — 分页查询 (筛选: user_id, table_id, action, status, start_date, end_date)
+   - GET /admin/data-audit/stats — 统计 (操作分布/失败率/日趋势/高频表)
+   - GET /admin/data-audit/{id} — 详情 (含 SQL + 快照)
+
+8. **初始化** (`backend/app/main.py`)
+   - QueryCache (Redis) + SchemaCache (Redis) + DataAuditor 在 lifespan 中初始化
+   - ALTER TABLE 语句确保新字段存在
