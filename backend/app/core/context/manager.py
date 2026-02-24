@@ -105,6 +105,21 @@ class ContextManager:
             compressed_tokens=original_tokens,
         )
 
+    @staticmethod
+    def _find_round_split(history: list[dict], keep_rounds: int) -> int:
+        """Find the split index to keep the last N rounds.
+
+        A "round" starts with a user message and includes all subsequent
+        non-user messages (assistant, tool, etc.) until the next user message.
+        This correctly handles tool-call rounds that produce 4+ messages per turn.
+        """
+        user_indices: list[int] = [
+            i for i, m in enumerate(history) if m.get("role") == "user"
+        ]
+        if len(user_indices) <= keep_rounds:
+            return 0
+        return user_indices[-keep_rounds]
+
     async def _compress(
         self,
         system_prompt: str,
@@ -120,10 +135,11 @@ class ContextManager:
         3. 保留最近 KEEP_RECENT_ROUNDS 轮对话原文
         4. 拼接: system + 摘要消息 + 最近 N 轮 + 当前 user_input
         """
-        keep_count = self.KEEP_RECENT_ROUNDS * 2
-        if len(history) > keep_count:
-            old_messages = history[:-keep_count]
-            recent_messages = history[-keep_count:]
+        split_idx = self._find_round_split(history, self.KEEP_RECENT_ROUNDS)
+
+        if split_idx > 0:
+            old_messages = history[:split_idx]
+            recent_messages = history[split_idx:]
         else:
             old_messages = []
             recent_messages = history

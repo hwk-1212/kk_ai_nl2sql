@@ -131,6 +131,7 @@ class SemanticLayer:
         )
 
         results: list[MetricSearchResult] = []
+        seen_metric_ids: set[str] = set()
         for hit in hits:
             meta = hit.get("metadata", {})
             hit_user_id = meta.get("user_id", "")
@@ -142,7 +143,14 @@ class SemanticLayer:
                 continue
 
             metric_id = meta.get("metric_id")
-            if not metric_id or metric_id.startswith("term_"):
+            if not metric_id:
+                continue
+
+            if metric_id in seen_metric_ids:
+                continue
+            seen_metric_ids.add(metric_id)
+
+            if not meta.get("name"):
                 continue
 
             results.append(

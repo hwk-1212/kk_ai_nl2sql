@@ -141,12 +141,11 @@ async def _execute_sql(arguments: dict, context: dict) -> str:
     lines.append(json.dumps(result_data, ensure_ascii=False, default=str))
     formatted = "\n".join(lines)
 
-    # 写入缓存
     if query_cache and cache_key:
         table_names = [t.pg_table_name for t in matched_tables]
         cache_data = dict(result_data)
         cache_data["_formatted"] = formatted
-        await query_cache.set(cache_key, cache_data, table_names=table_names)
+        await query_cache.set(cache_key, cache_data, table_names=table_names, user_id=str(user.id))
 
     await _audit_query(db, user, matched_tables[0] if matched_tables else None, sql, elapsed, query_result.row_count, "success", None, request)
 

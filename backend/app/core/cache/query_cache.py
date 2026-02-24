@@ -31,6 +31,7 @@ class QueryCache:
         self._l1_max = l1_max
         self._l2_ttl = l2_ttl
         self._table_keys: dict[str, set[str]] = {}
+        self._user_keys: dict[str, set[str]] = {}
         self._hits = {"l1": 0, "l2": 0, "miss": 0}
 
     # ── key generation ──────────────────────────────────────
@@ -39,7 +40,7 @@ class QueryCache:
     def cache_key(tenant_id: str, user_id: str, sql: str) -> str:
         normalized = sqlparse.format(sql, strip_comments=True, reindent=True).strip()
         raw = f"{tenant_id}:{user_id}:{normalized}"
-        return f"qcache:{hashlib.sha256(raw.encode()).hexdigest()[:24]}"
+        return f"qcache:{user_id[:8]}:{hashlib.sha256(raw.encode()).hexdigest()[:24]}"
 
     # ── read ────────────────────────────────────────────────
 
@@ -75,7 +76,11 @@ class QueryCache:
 
     # ── write ───────────────────────────────────────────────
 
-    async def set(self, key: str, result: dict, table_names: list[str] | None = None) -> None:
+    async def set(
+        self, key: str, result: dict,
+        table_names: list[str] | None = None,
+        user_id: str | None = None,
+    ) -> None:
         payload = json.dumps(result, ensure_ascii=False, default=str)
         if len(payload) > self.MAX_CACHEABLE_BYTES:
             return
@@ -90,6 +95,8 @@ class QueryCache:
         if table_names:
             for tn in table_names:
                 self._table_keys.setdefault(tn, set()).add(key)
+        if user_id:
+            self._user_keys.setdefault(user_id, set()).add(key)
 
     # ── invalidation ────────────────────────────────────────
 
@@ -107,17 +114,24 @@ class QueryCache:
         return count
 
     async def invalidate_user(self, user_id: str) -> int:
-        """清除用户的全部查询缓存 (L2 scan + delete)。"""
+        """清除用户的全部查询缓存。"""
         count = 0
-        to_remove = [k for k in self._l1 if user_id in k]
-        for k in to_remove:
-            del self._l1[k]
+
+        tracked_keys = self._user_keys.pop(user_id, set())
+        for k in tracked_keys:
+            self._l1.pop(k, None)
+            try:
+                await self._redis.delete(k)
+            except Exception:
+                pass
             count += 1
 
+        uid_prefix = user_id[:8]
+        pattern = f"qcache:{uid_prefix}:*"
         try:
             cursor = "0"
             while cursor:
-                cursor, keys = await self._redis.scan(cursor=cursor, match="qcache:*", count=100)
+                cursor, keys = await self._redis.scan(cursor=cursor, match=pattern, count=100)
                 if keys:
                     await self._redis.delete(*keys)
                     count += len(keys)

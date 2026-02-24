@@ -14,8 +14,8 @@ MASKING_RULES = {
         else "****"
     ),
     "email_mask": lambda v: (
-        v[0] + "***@" + v.split("@")[1]
-        if v and "@" in str(v) and len(v.split("@")[0]) > 0
+        str(v)[0] + "***@" + str(v).split("@")[1]
+        if v and "@" in str(v) and len(str(v).split("@")[0]) > 0
         else "***@***"
     ),
     "id_card": lambda v: "**************" + str(v)[-4:] if v and len(str(v)) >= 4 else "**************",

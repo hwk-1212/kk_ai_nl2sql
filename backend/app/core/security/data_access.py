@@ -22,6 +22,23 @@ class ColumnAccess(BaseModel):
 class DataAccessControl:
     """数据访问控制 — SQL 执行前的权限检查和 SQL 改写"""
 
+    async def _get_user_role_ids(self, user: "User", db: "AsyncSession") -> list:
+        """查询用户在当前租户下的所有数据角色 ID。"""
+        from app.models.data_permission import DataRoleAssignment, DataRole
+
+        q = (
+            select(DataRoleAssignment.data_role_id)
+            .join(DataRole, DataRoleAssignment.data_role_id == DataRole.id)
+            .where(DataRoleAssignment.user_id == user.id)
+        )
+        if user.tenant_id:
+            q = q.where(DataRole.tenant_id == user.tenant_id)
+        else:
+            q = q.where(DataRole.tenant_id.is_(None))
+
+        result = await db.execute(q)
+        return [row[0] for row in result.all()]
+
     async def check_table_access(
         self,
         user: "User",
@@ -31,34 +48,19 @@ class DataAccessControl:
     ) -> bool:
         """
         检查用户对表的操作权限 (read/write/admin)
-        逻辑:
         1. 表的所有者 (user_id) 默认有全部权限
-        2. 查询用户关联的 DataRole
+        2. 查询用户关联的 DataRole（限定在同租户）
         3. 查询 TablePermission 是否允许该操作
-        4. 无权限返回 False
         """
-        # 表所有者默认有全部权限
         if table.user_id == user.id:
             return True
 
-        # 查询用户的数据角色
-        from app.models.data_permission import DataRoleAssignment, DataRole, TablePermission
+        from app.models.data_permission import TablePermission
 
-        result = await db.execute(
-            select(DataRoleAssignment)
-            .join(DataRole, DataRoleAssignment.data_role_id == DataRole.id)
-            .where(
-                DataRoleAssignment.user_id == user.id,
-                DataRole.tenant_id == user.tenant_id if user.tenant_id else None,
-            )
-        )
-        assignments = result.scalars().all()
-        role_ids = [a.data_role_id for a in assignments]
-
+        role_ids = await self._get_user_role_ids(user, db)
         if not role_ids:
             return False
 
-        # 查询表权限
         result = await db.execute(
             select(TablePermission).where(
                 TablePermission.data_role_id.in_(role_ids),
@@ -88,29 +90,15 @@ class DataAccessControl:
         返回: [{column: "phone", visibility: "masked", rule: "last4"}, ...]
         默认: 表所有者所有列可见; 其他用户按 ColumnPermission 控制
         """
-        # 表所有者所有列可见
         if table.user_id == user.id:
-            # 返回所有列（需要从表结构获取，这里简化处理）
             return []
 
-        from app.models.data_permission import DataRoleAssignment, DataRole, ColumnPermission
+        from app.models.data_permission import ColumnPermission
 
-        # 查询用户的数据角色
-        result = await db.execute(
-            select(DataRoleAssignment)
-            .join(DataRole, DataRoleAssignment.data_role_id == DataRole.id)
-            .where(
-                DataRoleAssignment.user_id == user.id,
-                DataRole.tenant_id == user.tenant_id if user.tenant_id else None,
-            )
-        )
-        assignments = result.scalars().all()
-        role_ids = [a.data_role_id for a in assignments]
-
+        role_ids = await self._get_user_role_ids(user, db)
         if not role_ids:
             return []
 
-        # 查询列权限
         result = await db.execute(
             select(ColumnPermission).where(
                 ColumnPermission.data_role_id.in_(role_ids),
@@ -136,28 +124,17 @@ class DataAccessControl:
         db: "AsyncSession",
     ) -> str:
         """
-        将行级过滤条件注入 SQL WHERE 子句
-        使用 sqlparse 解析 SQL，在每个 FROM 表引用上追加 WHERE 条件
-        示例: SELECT * FROM orders → SELECT * FROM orders WHERE department = '销售部'
+        将行级过滤条件注入 SQL WHERE 子句。
+        使用正则定位 WHERE/ORDER BY/GROUP BY/HAVING/LIMIT 边界，
+        在正确位置插入过滤条件。
         """
-        from app.models.data_permission import DataRoleAssignment, DataRole, RowFilter
+        from app.models.data_permission import RowFilter
+        import re
 
-        # 查询用户的数据角色
-        result = await db.execute(
-            select(DataRoleAssignment)
-            .join(DataRole, DataRoleAssignment.data_role_id == DataRole.id)
-            .where(
-                DataRoleAssignment.user_id == user.id,
-                DataRole.tenant_id == user.tenant_id if user.tenant_id else None,
-            )
-        )
-        assignments = result.scalars().all()
-        role_ids = [a.data_role_id for a in assignments]
-
+        role_ids = await self._get_user_role_ids(user, db)
         if not role_ids:
             return sql
 
-        # 查询行级过滤条件
         table_ids = {t.id for t in tables}
         result = await db.execute(
             select(RowFilter).where(
@@ -166,32 +143,41 @@ class DataAccessControl:
             )
         )
         filters = result.scalars().all()
-
         if not filters:
             return sql
 
-        # 按表分组过滤条件
-        filters_by_table = {}
+        filters_by_table: dict = {}
         for f in filters:
-            if f.data_table_id not in filters_by_table:
-                filters_by_table[f.data_table_id] = []
-            filters_by_table[f.data_table_id].append(f.filter_expression)
+            filters_by_table.setdefault(f.data_table_id, []).append(f.filter_expression)
 
-        # 简化处理：在所有 WHERE 子句后追加过滤条件
-        # 实际应该使用 sqlparse 解析 SQL AST 并精确注入
-        if "WHERE" in sql.upper():
-            # 已有 WHERE，追加 AND
-            filter_expr = " AND ".join(
-                ["(" + " AND ".join(filters_by_table.get(t.id, [])) + ")" for t in tables if t.id in filters_by_table]
-            )
-            if filter_expr:
+        filter_parts = []
+        for t in tables:
+            exprs = filters_by_table.get(t.id, [])
+            if exprs:
+                filter_parts.append("(" + " AND ".join(exprs) + ")")
+        if not filter_parts:
+            return sql
+        filter_expr = " AND ".join(filter_parts)
+
+        upper = sql.upper()
+        has_where = bool(re.search(r"\bWHERE\b", upper))
+
+        tail_match = re.search(
+            r"\b(GROUP\s+BY|HAVING|ORDER\s+BY|LIMIT|OFFSET|UNION|INTERSECT|EXCEPT|FOR\s+UPDATE)\b",
+            upper,
+        )
+
+        if has_where:
+            if tail_match:
+                pos = tail_match.start()
+                sql = sql[:pos] + f"AND {filter_expr} " + sql[pos:]
+            else:
                 sql = sql + " AND " + filter_expr
         else:
-            # 没有 WHERE，添加 WHERE
-            filter_expr = " AND ".join(
-                ["(" + " AND ".join(filters_by_table.get(t.id, [])) + ")" for t in tables if t.id in filters_by_table]
-            )
-            if filter_expr:
+            if tail_match:
+                pos = tail_match.start()
+                sql = sql[:pos] + f"WHERE {filter_expr} " + sql[pos:]
+            else:
                 sql = sql + " WHERE " + filter_expr
 
         return sql
@@ -204,9 +190,10 @@ class DataAccessControl:
         db: "AsyncSession",
     ) -> dict:
         """
-        对查询结果应用列级脱敏
-        遍历结果集每一行，对 visibility=masked 的列应用脱敏规则
-        visibility=hidden 的列直接移除
+        对查询结果应用列级脱敏。
+        rows 为 list[list]（与 QueryResult 对齐），columns 为 list[str]。
+        visibility=hidden 的列从 columns+rows 中移除；
+        visibility=masked 的列应用脱敏规则。
         """
         from app.core.security.masking import apply_mask
 
@@ -219,21 +206,29 @@ class DataAccessControl:
         if "rows" not in result or "columns" not in result:
             return result
 
-        # 过滤隐藏的列
-        visible_columns = [c for c in result["columns"] if col_map.get(c, ColumnAccess(column=c, visibility="visible")).visibility != "hidden"]
-        result["columns"] = visible_columns
+        all_columns: list[str] = result["columns"]
 
-        # 对每行应用脱敏
+        keep_indices: list[int] = []
+        mask_rules: dict[int, str] = {}
+        for idx, col in enumerate(all_columns):
+            ca = col_map.get(col)
+            if ca and ca.visibility == "hidden":
+                continue
+            keep_indices.append(idx)
+            if ca and ca.visibility == "masked" and ca.masking_rule:
+                mask_rules[idx] = ca.masking_rule
+
+        result["columns"] = [all_columns[i] for i in keep_indices]
+
         masked_rows = []
         for row in result["rows"]:
-            masked_row = {}
-            for col in visible_columns:
-                value = row.get(col)
-                ca = col_map.get(col)
-                if ca and ca.visibility == "masked" and ca.masking_rule:
-                    value = apply_mask(value, ca.masking_rule)
-                masked_row[col] = value
-            masked_rows.append(masked_row)
+            new_row = []
+            for idx in keep_indices:
+                value = row[idx] if idx < len(row) else None
+                if idx in mask_rules:
+                    value = apply_mask(value, mask_rules[idx])
+                new_row.append(value)
+            masked_rows.append(new_row)
 
         result["rows"] = masked_rows
         return result

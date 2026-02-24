@@ -23,6 +23,45 @@ router = APIRouter(prefix="/metrics", tags=["metrics"])
 logger = logging.getLogger(__name__)
 
 
+# ========== Metric Search (must be before /{metric_id} to avoid route conflict) ==========
+
+@router.get("/search", response_model=list[MetricSearchResponse])
+async def search_metrics(
+    q: str = Query(..., min_length=1),
+    top_k: int = Query(5, ge=1, le=20),
+    request: Request = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """语义检索指标（供 Agent 使用）"""
+    semantic_layer = getattr(request.app.state, "semantic_layer", None)
+    if not semantic_layer:
+        raise HTTPException(status_code=500, detail="Semantic layer not initialized")
+
+    results = await semantic_layer.search(
+        query=q,
+        user_id=str(current_user.id),
+        tenant_id=str(current_user.tenant_id) if current_user.tenant_id else None,
+        top_k=top_k,
+    )
+
+    return [
+        MetricSearchResponse(
+            metric_id=r.metric_id,
+            name=r.name,
+            english_name=r.english_name,
+            formula=r.formula,
+            description=r.description,
+            dimensions=r.dimensions,
+            filters=r.filters,
+            source_table=r.source_table,
+            category=r.category,
+            score=r.score,
+        )
+        for r in results
+    ]
+
+
 # ========== Metric CRUD ==========
 
 @router.get("/", response_model=list[MetricResponse])
@@ -64,7 +103,6 @@ async def create_metric(
     await db.commit()
     await db.refresh(metric)
 
-    # 同步写入 Milvus
     semantic_layer = getattr(request.app.state, "semantic_layer", None)
     if semantic_layer:
         try:
@@ -114,7 +152,6 @@ async def update_metric(
     await db.commit()
     await db.refresh(metric)
 
-    # 更新 Milvus
     semantic_layer = getattr(request.app.state, "semantic_layer", None)
     if semantic_layer:
         try:
@@ -144,50 +181,12 @@ async def delete_metric(
     await db.delete(metric)
     await db.commit()
 
-    # 删除 Milvus 向量
     semantic_layer = getattr(request.app.state, "semantic_layer", None)
     if semantic_layer:
         try:
             await semantic_layer.remove_metric(str(metric_id))
         except Exception as e:
             logger.warning(f"Failed to remove metric from Milvus: {e}")
-
-
-@router.get("/search", response_model=list[MetricSearchResponse])
-async def search_metrics(
-    q: str = Query(..., min_length=1),
-    top_k: int = Query(5, ge=1, le=20),
-    request: Request = None,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """语义检索指标（供 Agent 使用）"""
-    semantic_layer = getattr(request.app.state, "semantic_layer", None)
-    if not semantic_layer:
-        raise HTTPException(status_code=500, detail="Semantic layer not initialized")
-
-    results = await semantic_layer.search(
-        query=q,
-        user_id=str(current_user.id),
-        tenant_id=str(current_user.tenant_id) if current_user.tenant_id else None,
-        top_k=top_k,
-    )
-
-    return [
-        MetricSearchResponse(
-            metric_id=r.metric_id,
-            name=r.name,
-            english_name=r.english_name,
-            formula=r.formula,
-            description=r.description,
-            dimensions=r.dimensions,
-            filters=r.filters,
-            source_table=r.source_table,
-            category=r.category,
-            score=r.score,
-        )
-        for r in results
-    ]
 
 
 # ========== Dimension CRUD ==========

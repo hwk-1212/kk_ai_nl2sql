@@ -201,11 +201,15 @@ class ReportGenerator:
             {"role": "system", "content": prompt},
             {"role": "user", "content": f"请生成标题为「{title}」的数据分析报告。"},
         ]
-        content_parts = []
+        content_parts: list[str] = []
         try:
-            async for chunk in self._llm.stream(model=GENERATE_MODEL, messages=messages):
-                if chunk.get("content"):
-                    content_parts.append(chunk["content"])
+            async for chunk in self._llm.stream(
+                model_id=GENERATE_MODEL,
+                messages=messages,
+                thinking_enabled=False,
+            ):
+                if chunk.type == "content" and chunk.data:
+                    content_parts.append(chunk.data)
         except Exception as e:
             logger.error("ReportGenerator LLM call failed: %s", e)
             return f"# {title}\n\n> 报告生成失败: {e}"

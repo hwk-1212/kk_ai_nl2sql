@@ -99,6 +99,7 @@ class DataManager:
         await db.commit()
         await db.refresh(ds)
 
+        tmp_path: str | None = None
         try:
             with tempfile.NamedTemporaryFile(suffix=f".{ext}", delete=False) as tmp:
                 tmp.write(content)
@@ -144,7 +145,6 @@ class DataManager:
             ds.table_count = table_count
             await db.commit()
 
-            # MinIO backup (best-effort, async)
             asyncio.create_task(self._backup_to_minio(user_id, ds.id, filename, content))
 
         except Exception as e:
@@ -154,10 +154,11 @@ class DataManager:
             await db.commit()
 
         finally:
-            try:
-                Path(tmp_path).unlink(missing_ok=True)
-            except Exception:
-                pass
+            if tmp_path:
+                try:
+                    Path(tmp_path).unlink(missing_ok=True)
+                except Exception:
+                    pass
 
         await db.refresh(ds)
         return ds
@@ -215,8 +216,7 @@ class DataManager:
                 params_list.append(params)
 
             async with self.engine.begin() as conn:
-                for params in params_list:
-                    await conn.execute(sa_text(insert_sql), params)
+                await conn.execute(sa_text(insert_sql), params_list)
 
     async def drop_pg_table(self, schema: str, table_name: str) -> None:
         ddl = f"DROP TABLE IF EXISTS {_pg_identifier(schema)}.{_pg_identifier(table_name)} CASCADE"

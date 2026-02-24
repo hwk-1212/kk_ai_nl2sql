@@ -204,9 +204,9 @@ def sanitize_column_name(name: str) -> str:
 
 
 def sanitize_table_name(name: str) -> str:
-    """清洗表名，确保 PG 安全。"""
+    """清洗表名，确保 PG 安全（保留中文字符）。"""
     name = str(name).strip().lower()
-    name = re.sub(r"[^a-z0-9_]", "_", name)
+    name = re.sub(r"[^a-z0-9_\u4e00-\u9fff]", "_", name)
     name = re.sub(r"_+", "_", name).strip("_")
     return name[:50] if name else "unnamed"
 

@@ -359,12 +359,7 @@ async def chat_stream(
             if not allowed:
                 raise HTTPException(status_code=429, detail=quota_msg)
 
-    # 5. 保存用户消息
-    user_msg = Message(conversation_id=conv.id, role="user", content=user_content)
-    db.add(user_msg)
-    await db.commit()
-
-    # 6. 构建 LLM messages (通过 ContextManager 自动管理上下文窗口)
+    # 5. 构建 LLM 历史（在保存用户消息前，避免 back_populates 导致 user_input 双重出现）
     memory_prompt = MemoryManager.build_memory_prompt(memory_result) if memory_manager else ""
     system_prompt = DEFAULT_SYSTEM_PROMPT
     if memory_prompt:
@@ -373,6 +368,11 @@ async def chat_stream(
         system_prompt += f"\n\n{rag_prompt}"
 
     history = [{"role": msg.role, "content": msg.content} for msg in list(conv.messages)[-MAX_CONTEXT_MESSAGES:]]
+
+    # 6. 保存用户消息
+    user_msg = Message(conversation_id=conv.id, role="user", content=user_content)
+    db.add(user_msg)
+    await db.commit()
 
     context_manager = _get_context_manager(raw_request)
     if context_manager:

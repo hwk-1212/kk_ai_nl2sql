@@ -75,8 +75,14 @@ class SQLSecurityChecker:
         if not sql_stripped:
             return SecurityResult(is_safe=False, blocked_reason="Empty SQL")
 
-        if ";" in sql_stripped:
-            return SecurityResult(is_safe=False, blocked_reason="Multiple statements not allowed")
+        try:
+            parsed_stmts = sqlparse.parse(sql_stripped)
+            real_stmts = [s for s in parsed_stmts if s.get_type() is not None or str(s).strip()]
+            if len(real_stmts) > 1:
+                return SecurityResult(is_safe=False, blocked_reason="Multiple statements not allowed")
+        except Exception:
+            if ";" in sql_stripped:
+                return SecurityResult(is_safe=False, blocked_reason="Multiple statements not allowed")
 
         for pattern in BLOCKED_PATTERNS:
             if pattern.search(sql_stripped):
@@ -116,12 +122,19 @@ class SQLSecurityChecker:
             return f"{sql_stripped} LIMIT {max_rows}"
         return sql_stripped
 
+    _KEYWORD_EXCLUSIONS = frozenset({
+        "SELECT", "WHERE", "SET", "VALUES", "DEFAULT", "AS", "ON",
+        "AND", "OR", "NOT", "NULL", "TRUE", "FALSE", "CASE", "WHEN",
+        "THEN", "ELSE", "END", "IN", "EXISTS", "BETWEEN", "LIKE",
+        "IS", "ALL", "ANY", "SOME", "LATERAL", "UNNEST", "DUAL",
+    })
+
     def extract_table_names(self, sql: str) -> list[str]:
         """从 SQL 中提取引用的表名 (含 schema.table 格式)。"""
         tables = set()
         for pattern in [_TABLE_FROM_RE, _TABLE_JOIN_RE, _TABLE_INTO_RE, _TABLE_UPDATE_RE]:
             for match in pattern.finditer(sql):
                 raw = match.group(1).strip().strip("\"'")
-                if raw.upper() not in ("SELECT", "WHERE", "SET", "VALUES"):
+                if raw.upper() not in self._KEYWORD_EXCLUSIONS:
                     tables.add(raw)
         return list(tables)
