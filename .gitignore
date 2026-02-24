@@ -11,6 +11,10 @@ __pycache__/
 .venv/
 venv/
 
+# Celery (运行时调度状态，不提交)
+celerybeat-schedule
+celerybeat-schedule.db
+
 # Node
 node_modules/
 dist/
