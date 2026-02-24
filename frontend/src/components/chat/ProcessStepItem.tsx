@@ -142,9 +142,33 @@ function StepDetail({ step }: { step: ProcessStep }) {
 
     case 'tool_call':
       return (
-        <div className="text-slate-500 dark:text-slate-400 space-y-0.5">
-          <div>工具: <span className="font-mono text-slate-700 dark:text-slate-200">{data.tool}</span></div>
-          {data.table && <div>表: <span className="font-mono text-slate-700 dark:text-slate-200">{data.table}</span></div>}
+        <div className="space-y-2">
+          <div>
+            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">参数</span>
+            <pre className="mt-1 text-xs bg-slate-900 text-emerald-300 p-3 rounded-xl overflow-x-auto font-mono whitespace-pre-wrap">
+              {JSON.stringify(
+                Object.fromEntries(Object.entries(data).filter(([k]) => !['result', 'error', 'tool'].includes(k))),
+                null,
+                2
+              )}
+            </pre>
+          </div>
+          {data.result && (
+            <div>
+              <span className="text-xs font-medium text-green-400">结果</span>
+              <pre className="mt-1 text-xs bg-green-500/5 dark:bg-green-500/10 rounded-lg p-3 overflow-x-auto text-slate-700 dark:text-slate-300 whitespace-pre-wrap max-h-64 overflow-y-auto">
+                {data.result}
+              </pre>
+            </div>
+          )}
+          {data.error && (
+            <div>
+              <span className="text-xs font-medium text-red-400">错误</span>
+              <pre className="mt-1 text-xs bg-red-500/5 rounded-lg p-3 overflow-x-auto text-red-400 whitespace-pre-wrap">
+                {data.error}
+              </pre>
+            </div>
+          )}
         </div>
       )
 

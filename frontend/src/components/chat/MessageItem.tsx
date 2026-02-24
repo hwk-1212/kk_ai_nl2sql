@@ -15,6 +15,8 @@ interface MessageItemProps {
   message: Message
   isStreamingContent?: string
   isStreamingReasoning?: string
+  /** 流式过程中的交错块（与 isStreamingContent 配合） */
+  streamingBlocks?: import('@/types').MessageBlock[]
   onRegenerate?: (id: string) => void
 }
 
@@ -24,6 +26,7 @@ export default memo(function MessageItem({
   message,
   isStreamingContent,
   isStreamingReasoning,
+  streamingBlocks,
   onRegenerate,
 }: MessageItemProps) {
   const [copied, setCopied] = useState(false)
@@ -34,8 +37,18 @@ export default memo(function MessageItem({
   const displayContent = isStreamingContent || message.content
   const displayReasoning = isStreamingReasoning || message.reasoning
 
+  /** 交错块：message.blocks（完成态）或 streamingBlocks（流式态，store 中实时更新） */
+  const blocks = (() => {
+    if (message.blocks && message.blocks.length > 0) return message.blocks
+    if (streamingBlocks && streamingBlocks.length > 0) return streamingBlocks
+    return null
+  })()
+
+  const textToCopy = blocks
+    ? blocks.filter((b): b is { type: 'content'; text: string } => b.type === 'content').map((b) => b.text).join('\n\n')
+    : displayContent || ''
   const handleCopy = () => {
-    navigator.clipboard.writeText(displayContent || '')
+    navigator.clipboard.writeText(textToCopy)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
@@ -93,24 +106,43 @@ export default memo(function MessageItem({
           />
         )}
 
-        {/* tool calls */}
-        {message.toolCalls?.map((tc) => (
-          <ToolCallBlock key={tc.id} toolCall={tc} />
-        ))}
-
-        {/* main content */}
+        {/* 交错块：文本 → 工具 → 文本 → ... */}
         {isUser ? (
           <div className="bg-user-bubble dark:bg-slate-700 px-6 py-4 rounded-3xl rounded-tl-none text-slate-700 dark:text-slate-200 leading-relaxed shadow-sm">
             {displayContent}
           </div>
-        ) : displayContent ? (
-          <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-3xl p-6 shadow-soft text-slate-700 dark:text-slate-200 leading-relaxed">
-            <MarkdownContent content={displayContent} />
-            {isStreaming && <StreamingIndicator />}
+        ) : blocks && blocks.length > 0 ? (
+          <div className="space-y-3">
+            {blocks.map((b, i) =>
+              b.type === 'content' ? (
+                <div
+                  key={'c-' + i}
+                  className="text-slate-700 dark:text-slate-200 leading-relaxed"
+                >
+                  <MarkdownContent content={b.text} />
+                  {isStreaming && i === blocks.length - 1 && <StreamingIndicator />}
+                </div>
+              ) : (
+                <ToolCallBlock key={b.toolCall.id} toolCall={b.toolCall} />
+              )
+            )}
           </div>
-        ) : isStreaming && displayReasoning ? (
-          <div className="text-sm text-slate-400 italic">正在组织回答...</div>
-        ) : null}
+        ) : (
+          <>
+            {/* 兼容旧消息：无 blocks 时按原逻辑 */}
+            {message.toolCalls?.map((tc) => (
+              <ToolCallBlock key={tc.id} toolCall={tc} />
+            ))}
+            {displayContent ? (
+              <div className="text-slate-700 dark:text-slate-200 leading-relaxed">
+                <MarkdownContent content={displayContent} />
+                {isStreaming && <StreamingIndicator />}
+              </div>
+            ) : isStreaming && displayReasoning ? (
+              <div className="text-sm text-slate-400 italic">正在组织回答...</div>
+            ) : null}
+          </>
+        )}
 
         {/* chart */}
         {!isUser && message.chartConfig && (
@@ -119,21 +151,40 @@ export default memo(function MessageItem({
               <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
                 {message.chartConfig.title || '数据图表'}
               </h4>
-              <ChartTypeSelector
-                currentType={chartType || message.chartConfig.chartType}
-                availableTypes={AVAILABLE_CHART_TYPES}
-                onChange={setChartType}
-              />
+              {/* 有图片时也允许切换为交互图 */}
+              {!message.chartConfig.imageUrl || chartType ? (
+                <ChartTypeSelector
+                  currentType={chartType || message.chartConfig.chartType}
+                  availableTypes={AVAILABLE_CHART_TYPES}
+                  onChange={setChartType}
+                />
+              ) : (
+                <button
+                  onClick={() => setChartType(message.chartConfig!.chartType)}
+                  className="text-[10px] px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-500 hover:text-primary transition-colors"
+                >
+                  交互图
+                </button>
+              )}
             </div>
-            <ChartRenderer
-              config={{ ...message.chartConfig, chartType: (chartType || message.chartConfig.chartType) as ChartConfig['chartType'] }}
-              height={280}
-            />
+            {/* 优先展示 MinIO 图片；切换到交互图时走 Recharts */}
+            {message.chartConfig.imageUrl && !chartType ? (
+              <img
+                src={message.chartConfig.imageUrl}
+                alt={message.chartConfig.title || '数据图表'}
+                className="w-full rounded-2xl"
+              />
+            ) : (
+              <ChartRenderer
+                config={{ ...message.chartConfig, chartType: (chartType || message.chartConfig.chartType) as ChartConfig['chartType'] }}
+                height={280}
+              />
+            )}
           </div>
         )}
 
         {/* actions bar */}
-        {!isUser && !isStreaming && displayContent && (
+        {!isUser && !isStreaming && (blocks ? blocks.some((b) => b.type === 'content') : !!displayContent) && (
           <div className="flex items-center gap-1 pt-1">
             <button
               onClick={handleCopy}

@@ -5,6 +5,61 @@ import remarkMath from 'remark-math'
 import rehypeHighlight from 'rehype-highlight'
 import rehypeKatex from 'rehype-katex'
 import { Copy, Check } from 'lucide-react'
+import ChartRenderer from '@/components/chart/ChartRenderer'
+import type { ChartConfig } from '@/types'
+
+const CHART_TYPES = new Set(['bar', 'line', 'area', 'pie', 'scatter', 'table'])
+
+function _tryParseChartConfig(code: string): ChartConfig | null {
+  try {
+    const raw = JSON.parse(code)
+    if (!raw || typeof raw !== 'object') return null
+    const chartType = raw.type || raw.chartType
+    if (!CHART_TYPES.has(chartType)) return null
+    if (!Array.isArray(raw.data) || raw.data.length === 0) return null
+    // Build a minimal ChartConfig
+    const config: ChartConfig = { chartType, data: raw.data }
+    if (raw.title) config.title = String(raw.title)
+    const xField = raw.xField || raw.nameField
+    if (xField) config.xAxis = { field: String(xField) }
+    const yFields: string[] = raw.yFields || (raw.valueField ? [String(raw.valueField)] : [])
+    if (yFields.length > 0) {
+      config.yAxis = { field: yFields[0] }
+      config.series = yFields.map((f, i) => ({
+        field: f,
+        color: ['#4F46E5','#06B6D4','#10B981','#F59E0B','#EF4444'][i % 5],
+      }))
+    }
+    if (raw.series && Array.isArray(raw.series)) {
+      config.series = (raw.series as Record<string, unknown>[]).map((s) => ({
+        field: (s.dataKey ?? s.field) as string,
+        label: (s.name ?? s.label) as string | undefined,
+        color: s.color as string | undefined,
+      }))
+    }
+    if (raw.image_url) config.imageUrl = String(raw.image_url)
+    return config
+  } catch {
+    return null
+  }
+}
+
+function InlineChart({ config }: { config: ChartConfig }) {
+  const imageUrl = config.imageUrl
+  if (imageUrl) {
+    return (
+      <div className="my-4 rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
+        {config.title && <p className="text-xs font-semibold text-slate-500 mb-2">{config.title}</p>}
+        <img src={imageUrl} alt={config.title || '图表'} className="w-full rounded-xl" />
+      </div>
+    )
+  }
+  return (
+    <div className="my-4 rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
+      <ChartRenderer config={config} height={260} />
+    </div>
+  )
+}
 
 function CodeBlock({ className, children, ...props }: React.HTMLAttributes<HTMLElement> & { children?: React.ReactNode }) {
   const [copied, setCopied] = useState(false)
@@ -17,6 +72,12 @@ function CodeBlock({ className, children, ...props }: React.HTMLAttributes<HTMLE
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }, [code])
+
+  // json code block with valid chart config → render inline chart
+  if (lang === 'json') {
+    const chartConfig = _tryParseChartConfig(code)
+    if (chartConfig) return <InlineChart config={chartConfig} />
+  }
 
   if (!match) {
     return (

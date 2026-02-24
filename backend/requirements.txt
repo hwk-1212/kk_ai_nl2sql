@@ -33,3 +33,4 @@ celery[redis]>=5.4.0
 sqlparse>=0.5.0
 tiktoken>=0.7.0
 aiofiles>=24.1.0
+matplotlib>=3.8.0

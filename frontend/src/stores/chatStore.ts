@@ -9,6 +9,8 @@ interface ChatState {
   isStreaming: boolean
   streamingContent: string
   streamingReasoning: string
+  /** 流式过程中的交错块（用于实时展示 文本→工具→文本） */
+  streamingBlocks: import('@/types').MessageBlock[]
   thinkingEnabled: boolean
   loaded: boolean
   selectedKBIds: string[]
@@ -95,6 +97,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   isStreaming: false,
   streamingContent: '',
   streamingReasoning: '',
+  streamingBlocks: [],
   thinkingEnabled: false,
   loaded: false,
   selectedKBIds: [],
@@ -228,14 +231,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     // 开始 SSE 流式请求
     abortController = new AbortController()
-    set({ isStreaming: true, streamingContent: '', streamingReasoning: '' })
+    set({ isStreaming: true, streamingContent: '', streamingReasoning: '', streamingBlocks: [] })
     get().clearProcessSteps()
 
     let finalConvId = convId
     let recalledMemories: MemoryFragment[] = []
     let ragSources: RAGSource[] = []
     const toolCalls: ToolCall[] = []
+    const blocks: import('@/types').MessageBlock[] = []
+    let contentBuffer = ''
     let chartConfig: ChartConfig | undefined
+    let lastSqlResult: { columns: string[]; rows: unknown[][] } | null = null
 
     try {
       await streamChat(
@@ -284,12 +290,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
             })
           },
           onToolCall: (data) => {
-            toolCalls.push({
+            if (contentBuffer.trim()) {
+              blocks.push({ type: 'content', text: contentBuffer.trim() })
+            } else if (blocks.length === 0) {
+              // 模型未先输出文本时，插入占位块，保证「文本 → 工具 → 文本」结构
+              blocks.push({ type: 'content', text: '正在执行分析…' })
+            }
+            contentBuffer = ''
+            const tc: ToolCall = {
               id: data.id,
               name: data.name,
               arguments: data.arguments,
               status: 'calling',
-            })
+            }
+            toolCalls.push(tc)
+            blocks.push({ type: 'tool', toolCall: tc })
+            set({ streamingBlocks: [...blocks] })
             get().addProcessStep({
               id: data.id,
               type: 'tool_call',
@@ -306,11 +322,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
               tc.result = data.result || undefined
               tc.error = data.error || undefined
             }
+            // sync blocks so ToolCallBlock re-renders with updated status
+            set({ streamingBlocks: [...blocks] })
 
             const endTime = Date.now()
             const stepStatus = data.status === 'success' ? 'success' as const : 'error' as const
 
-            get().updateProcessStep(data.id, { status: stepStatus, endTime })
+            const existing = get().processSteps.find((s) => s.id === data.id)
+            get().updateProcessStep(data.id, {
+              status: stepStatus,
+              endTime,
+              data: existing?.data
+                ? { ...existing.data, result: data.result, error: data.error }
+                : { tool: data.name, result: data.result, error: data.error },
+            })
 
             const structured = (data as Record<string, unknown>).structured_data as Record<string, unknown> | undefined
 
@@ -319,6 +344,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
               if (parsed) {
                 const cols = parsed.columns as string[] | undefined
                 const rows = parsed.rows as unknown[][] | undefined
+                if (cols && rows) lastSqlResult = { columns: cols, rows }
                 get().addProcessStep({
                   id: 'sql-' + Date.now(),
                   type: 'sql_result',
@@ -341,6 +367,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
                   ? structured
                   : JSON.parse(data.result || '{}')
                 chartConfig = _mapChartConfig(raw as Record<string, unknown>)
+                // 仅当 recommend_chart 返回的 data 为空时，才用同轮 SQL 结果补充
+                if ((!chartConfig.data || chartConfig.data.length === 0) && lastSqlResult?.columns && lastSqlResult?.rows?.length) {
+                  chartConfig = { ...chartConfig, data: _rowsToRecords(lastSqlResult.columns, lastSqlResult.rows) ?? [] }
+                }
                 get().addProcessStep({
                   id: 'chart-' + Date.now(),
                   type: 'chart_config',
@@ -355,8 +385,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
           },
           onReasoning: (chunk) =>
             set((s) => ({ streamingReasoning: s.streamingReasoning + chunk })),
-          onContent: (chunk) =>
-            set((s) => ({ streamingContent: s.streamingContent + chunk })),
+          onContent: (chunk) => {
+            contentBuffer += chunk
+            const tail: import('@/types').MessageBlock[] = contentBuffer.trim()
+              ? [{ type: 'content' as const, text: contentBuffer.trim() }]
+              : []
+            set((s) => ({
+              streamingContent: s.streamingContent + chunk,
+              streamingBlocks: [...blocks, ...tail],
+            }))
+          },
           onDone: () => {
             // handled below
           },
@@ -372,6 +410,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     // 保存 assistant 消息到本地状态
     const { streamingContent, streamingReasoning } = get()
+    if (contentBuffer.trim()) blocks.push({ type: 'content', text: contentBuffer.trim() })
     if (streamingContent || toolCalls.length > 0) {
       const assistantMsg: Message = {
         id: 'msg-' + Date.now(),
@@ -381,6 +420,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         memories: recalledMemories.length > 0 ? recalledMemories : undefined,
         ragSources: ragSources.length > 0 ? ragSources : undefined,
         toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+        blocks: blocks.length > 0 ? blocks : undefined,
         chartConfig,
         model: selectedModel,
         createdAt: new Date().toISOString(),
@@ -395,9 +435,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
         isStreaming: false,
         streamingContent: '',
         streamingReasoning: '',
+        streamingBlocks: [],
       }))
     } else {
-      set({ isStreaming: false, streamingContent: '', streamingReasoning: '' })
+      set({ isStreaming: false, streamingContent: '', streamingReasoning: '', streamingBlocks: [] })
     }
 
     abortController = null
@@ -422,9 +463,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
         isStreaming: false,
         streamingContent: '',
         streamingReasoning: '',
+        streamingBlocks: [],
       }))
     } else {
-      set({ isStreaming: false })
+      set({ isStreaming: false, streamingBlocks: [] })
     }
     abortController = null
   },
@@ -502,11 +544,24 @@ function _mapChartConfig(raw: Record<string, unknown>): ChartConfig {
   if (raw.yAxis && typeof raw.yAxis === 'object') config.yAxis = raw.yAxis as ChartConfig['yAxis']
 
   if (raw.series && Array.isArray(raw.series)) {
-    config.series = raw.series as ChartConfig['series']
+    config.series = (raw.series as Record<string, unknown>[]).map((s) => ({
+      field: (s.dataKey ?? s.field) as string,
+      label: (s.name ?? s.label) as string | undefined,
+      color: (s.color) as string | undefined,
+    }))
   }
 
+  // pie chart: nameField → xAxis, valueField → series
   if (raw.nameField) config.xAxis = { field: String(raw.nameField) }
-  if (raw.valueField) config.yAxis = { field: String(raw.valueField) }
+  if (raw.valueField) {
+    config.yAxis = { field: String(raw.valueField) }
+    if (!config.series || config.series.length === 0) {
+      config.series = [{ field: String(raw.valueField) }]
+    }
+  }
+
+  // handle imageUrl from backend rendering
+  if (raw.image_url) config.imageUrl = String(raw.image_url)
 
   return config
 }

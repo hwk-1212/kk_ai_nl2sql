@@ -4,7 +4,7 @@ import { useChatStore } from '@/stores/chatStore'
 import MessageItem from './MessageItem'
 
 export default function MessageList() {
-  const { conversations, currentId, isStreaming, streamingContent, streamingReasoning, regenerate } = useChatStore()
+  const { conversations, currentId, isStreaming, streamingContent, streamingReasoning, streamingBlocks, regenerate } = useChatStore()
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const conversation = conversations.find((c) => c.id === currentId)
@@ -14,7 +14,7 @@ export default function MessageList() {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
-  }, [messages.length, streamingContent, streamingReasoning])
+  }, [messages.length, streamingContent, streamingReasoning, streamingBlocks])
 
   // welcome screen
   if (!conversation || (messages.length === 0 && !isStreaming)) {
@@ -58,6 +58,7 @@ export default function MessageList() {
             }}
             isStreamingContent={streamingContent}
             isStreamingReasoning={streamingReasoning}
+            streamingBlocks={streamingBlocks}
           />
         )}
       </div>

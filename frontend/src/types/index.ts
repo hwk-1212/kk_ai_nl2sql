@@ -45,12 +45,19 @@ export interface MemoryFragment {
   createdAt: string
 }
 
+/** 消息块：用于交错展示 文本 | 工具调用 | 文本 | ... */
+export type MessageBlock =
+  | { type: 'content'; text: string }
+  | { type: 'tool'; toolCall: ToolCall }
+
 export interface Message {
   id: string
   role: 'user' | 'assistant' | 'system'
   content: string
   reasoning?: string
   toolCalls?: ToolCall[]
+  /** 交错块（文本+工具），有则按此渲染；否则用 content + toolCalls */
+  blocks?: MessageBlock[]
   files?: FileAttachment[]
   memories?: MemoryFragment[]
   ragSources?: RAGSource[]
@@ -222,6 +229,8 @@ export interface ChartConfig {
   series?: { field: string; label?: string; color?: string }[]
   colorMapping?: Record<string, string>
   data: Record<string, any>[]
+  /** 后端渲染后上传至 MinIO 的图片地址（有则优先展示图片，否则用 Recharts 交互图） */
+  imageUrl?: string
 }
 
 // ========== Metrics ==========

@@ -144,6 +144,25 @@ case "tool_result":
 - 当 message 包含 chartConfig → 渲染 ChartRenderer
 - 支持 ChartTypeSelector 切换图表类型
 - 图表下方显示数据表格 (可折叠)
+- **增强**: 支持 `chartConfig.imageUrl`（MinIO 图片）优先展示，可切换为 Recharts 交互图
+
+### Chat 输出格式（Coze 风格交错）
+
+**修改文件**: `frontend/src/stores/chatStore.ts`, `frontend/src/components/chat/MessageItem.tsx`, `frontend/src/components/tools/ToolCallBlock.tsx`
+
+- **交错块结构**: 文本 → 工具调用 → 文本 → 工具调用 → …
+- `chatStore` 维护 `streamingBlocks` / `message.blocks`，按 SSE 事件顺序构建
+- `onContent` 累积文本；`onToolCall` 时 flush 文本块并追加工具块；模型未先输出文本时插入占位「正在执行分析…」
+- **ToolCallBlock**: Coze 风格可折叠卡片，默认显示工具名+状态，点击展开参数/结果
+- **执行过程面板**: 展示详细参数和结果；Chat 界面仅展示简要工具调用
+
+### 图表增强（MinIO 图片 + Markdown 内嵌）
+
+**修改文件**: `backend/app/core/tools/builtin/chart_recommend.py`, `frontend/src/components/chat/MarkdownContent.tsx`
+
+- **recommend_chart**: 使用 matplotlib 渲染 PNG → 上传 MinIO → 返回 `image_url`
+- **MarkdownContent**: `json` 代码块若为有效 ChartConfig → 渲染为内嵌图表（支持 imageUrl 或 Recharts）
+- **ChartConfig**: 新增 `imageUrl` 字段，有则优先展示图片
 
 ---
 
@@ -225,6 +244,11 @@ case "tool_result":
 - [x] 端到端场景 1-4 测试
 - [x] 错误处理 (上传失败/查询超时/权限拒绝)
 - [x] 验证通过
+- [x] Chat 输出格式：文本→工具→文本 交错结构（streamingBlocks / blocks）
+- [x] ToolCallBlock Coze 风格可折叠展示
+- [x] 执行过程面板详细参数/结果，Chat 界面简要展示
+- [x] recommend_chart 渲染 PNG 上传 MinIO 返回 image_url
+- [x] MarkdownContent json 代码块解析为内嵌图表
 
 ---
 
@@ -239,6 +263,9 @@ case "tool_result":
 - [x] 数据修改操作正常
 - [x] 错误场景有友好提示 (超时/权限)
 - [x] 12 容器全部 healthy
+- [x] Chat 输出为「文本→工具→文本」交错结构（Coze 风格）
+- [x] 工具调用可折叠，执行过程面板展示详细参数/结果
+- [x] 图表支持 MinIO 图片展示，分析报告内 json 代码块渲染为图表
 
 ---
 
@@ -246,13 +273,19 @@ case "tool_result":
 
 | 文件 | 变更 |
 |------|------|
-| `src/services/api.ts` | 新增 dataApi: 10 个 API 函数 (含 XHR multipart upload + progress 回调) |
-| `src/stores/dataStore.ts` | 完全重写: Mock → 真实 API, 新增 snake_case→camelCase 映射函数 (mapSource/mapTable/mapTableData) |
-| `src/stores/chatStore.ts` | 增强 sendMessage: tool_call→ProcessStep 实时推送, tool_result→SQL/Chart 结构化解析, ChartConfig 提取 |
-| `src/pages/ChatPage.tsx` | 从 mockProcessSteps 切换为 chatStore.processSteps |
-| `src/components/data/FileUpload.tsx` | 移除 mock 进度定时器, 使用真实 upload 异常反馈 |
-| `src/components/data/DataSourceList.tsx` | handleDelete 改为 async |
-| `backend/app/api/v1/chat.py` | tool_result 限制提升至 8000 字符, 新增 _extract_structured_data() 解析 execute_sql/recommend_chart/inspect 工具的结构化输出, SSE 增加 structured_data 字段 |
+| `frontend/src/services/api.ts` | 新增 dataApi: 10 个 API 函数 (含 XHR multipart upload + progress 回调) |
+| `frontend/src/stores/dataStore.ts` | 完全重写: Mock → 真实 API, 新增 snake_case→camelCase 映射函数 (mapSource/mapTable/mapTableData) |
+| `frontend/src/stores/chatStore.ts` | 增强 sendMessage: tool_call→ProcessStep 实时推送, tool_result→SQL/Chart 结构化解析; 新增 streamingBlocks/blocks 交错结构, 占位文本 |
+| `frontend/src/components/chat/MessageItem.tsx` | ChartConfig 渲染; blocks 交错渲染; imageUrl 优先展示 |
+| `frontend/src/components/chat/MessageList.tsx` | 传递 streamingBlocks 给流式 MessageItem |
+| `frontend/src/components/chat/ProcessStepItem.tsx` | 执行过程面板展示详细参数/结果 |
+| `frontend/src/components/chat/MarkdownContent.tsx` | json 代码块解析为 ChartConfig 内嵌图表 |
+| `frontend/src/components/tools/ToolCallBlock.tsx` | Coze 风格可折叠卡片 (工具名+状态, 展开参数/结果) |
+| `frontend/src/components/chart/ChartRenderer.tsx` | 修复 pie nameKey、空数据判断 |
+| `frontend/src/types/index.ts` | MessageBlock 类型; ChartConfig.imageUrl |
+| `backend/app/api/v1/chat.py` | tool_result 限制 8000 字符, _extract_structured_data; 强化 system prompt「先输出文字再调用工具」 |
+| `backend/app/core/tools/builtin/chart_recommend.py` | matplotlib 渲染 PNG → MinIO 上传 → 返回 image_url |
+| `backend/requirements.txt` | 新增 matplotlib |
 
 ---
 
@@ -289,6 +322,7 @@ case "tool_result":
   - `onRAGSource` → 创建 `rag_source` ProcessStep
   - 优先使用后端 `structured_data` 字段, fallback 到 JSON 文本解析
 - 新增辅助函数: `_tryParseToolJson()`, `_rowsToRecords()`, `_mapChartConfig()`
+- **交错块结构**: `blocks` / `streamingBlocks` 维护「文本→工具→文本」顺序；`onContent` 时 flush 到 blocks；`onToolCall` 时若无前置文本则插入占位「正在执行分析…」
 
 ### 4. 后端 SSE 增强 (backend/app/api/v1/chat.py)
 
@@ -298,8 +332,15 @@ case "tool_result":
   - `recommend_chart` → `{type:"chart_config", ...config}`
   - `inspect_tables/inspect_table_schema` → `{type:"schema_info", text}`
 - SSE `tool_result` 事件新增 `structured_data` 字段 (当解析成功时)
+- **System prompt 强化**: 要求「先输出文字说明再调用工具」，禁止无文字直接调用
 
-### 5. 验证结果
+### 5. recommend_chart 图表渲染 (backend/app/core/tools/builtin/chart_recommend.py)
+
+- `_render_chart_png(config)`: 使用 matplotlib Agg 渲染 bar/line/area/pie/scatter 为 PNG
+- `_upload_png_to_minio(png_bytes)`: 上传至 MinIO `charts` bucket，返回公开 URL
+- 返回 JSON 中增加 `image_url` 字段，前端优先展示图片
+
+### 6. 验证结果
 
 - 12 容器全部 healthy
 - 后端 API 端到端: 注册 → 登录 → 上传 CSV → 列出数据源 → 列出表 → 查询数据 (全部通过)
